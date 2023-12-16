@@ -1,6 +1,7 @@
 #include <iostream>
 #include <cstdint>
 #include "disk.h"
+#include <string>
 
 #ifndef __FS_H__
 #define __FS_H__
@@ -29,6 +30,17 @@ private:
     Disk disk;
     // size of a FAT entry is 2 bytes
     int16_t fat[BLOCK_SIZE/2];
+    
+    /*
+        Custom Created Private Functions
+    */
+
+    std::vector<std::string> SplitFilepath(std::string &filepath);
+    std::string GetFilenameFromFilepath(std::string &filepath);
+
+    int CheckValidCreate(std::string &filepath);
+    void SaveInputToString(int &length, std::string &inputString);
+    void DivideStringIntoBlocks(std::string &inputString);
 
 public:
     FS();
