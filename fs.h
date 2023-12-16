@@ -40,7 +40,7 @@ private:
 
     int CheckValidCreate(std::string &filepath);
     void SaveInputToString(int &length, std::string &inputString);
-    void DivideStringIntoBlocks(std::string &inputString);
+    std::vector<std::string> DivideStringIntoBlocks(std::string &inputString);
 
 public:
     FS();

@@ -83,8 +83,8 @@ void FS::SaveInputToString(int &length, std::string &inputString)
     }
 }
 
-// Divides input string into 4096-byte sized blocks.
-void FS::DivideStringIntoBlocks(std::string &inputString)
+// Divides input string into 4096-byte sized blocks and returns a vector with these blocks.
+std::vector<std::string> FS::DivideStringIntoBlocks(std::string &inputString)
 {
     int maxIndex = static_cast<int>(inputString.size() / BLOCK_SIZE);
 
@@ -103,6 +103,8 @@ void FS::DivideStringIntoBlocks(std::string &inputString)
         stringVec.push_back(inputString.substr(i * BLOCK_SIZE, BLOCK_SIZE));
     }
     stringVec.push_back(inputString.substr(maxIndex * BLOCK_SIZE));
+
+    return stringVec;
 }
 
 
@@ -120,7 +122,7 @@ int FS::create(std::string filepath)
     int length = 0; std::string inputString = "";
     SaveInputToString(length, inputString);
 
-
+    std::vector<std::string> blockVector = DivideStringIntoBlocks(inputString);
 
 
 
