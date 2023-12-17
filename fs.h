@@ -2,6 +2,8 @@
 #include <cstdint>
 #include "disk.h"
 #include <string>
+#include <vector>
+#include <unordered_map>
 
 #ifndef __FS_H__
 #define __FS_H__
@@ -10,6 +12,7 @@
 #define FAT_BLOCK 1
 #define FAT_FREE 0
 #define FAT_EOF -1
+#define FAT_TEMP_RESERVED -2
 
 #define TYPE_FILE 0
 #define TYPE_DIR 1
@@ -21,7 +24,7 @@ struct dir_entry {
     char file_name[56]; // name of the file / sub-directory
     uint32_t size; // size of the file in bytes
     uint16_t first_blk; // index in the FAT for the first block of the file
-    uint8_t type; // directory (1) or file (0)
+    uint8_t type; // directory (1), file (0) or initialized (-1)
     uint8_t access_rights; // read (0x04), write (0x02), execute (0x01)
 };
 
@@ -31,16 +34,27 @@ private:
     // size of a FAT entry is 2 bytes
     int16_t fat[BLOCK_SIZE/2];
     
+    std::vector<dir_entry*> directoryVector;
+
+    std::unordered_map<std::string, int> directoryIndexHashMap;
+    
+    
     /*
         Custom Created Private Functions
     */
 
-    std::vector<std::string> SplitFilepath(std::string &filepath);
-    std::string GetFilenameFromFilepath(std::string &filepath);
+    void FormatBlocks();
+    void InitializeDirectory();
 
-    int CheckValidCreate(std::string &filepath);
+    std::vector<std::string> SplitFilepath(std::string &filepath) const;
+    std::string GetFilenameFromFilepath(std::string &filepath) const;
+
+    int CheckValidCreate(std::string &filepath) const;
     void SaveInputToString(int &length, std::string &inputString);
-    std::vector<std::string> DivideStringIntoBlocks(std::string &inputString);
+    std::vector<std::string> DivideStringIntoBlocks(std::string &inputString) const;
+    int FindFreeMemoryBlocks(int const &amount, std::vector<int> &indexVector);
+    dir_entry MakeDirEntry(std::string &filename, int &size, int &firstBlock, int &type, int &accessRights);
+    void WriteToMemory(dir_entry* directory, dir_entry &dirEntry, std::vector<int> &indexVector, std::vector<std::string> &blockVector);
 
 public:
     FS();
