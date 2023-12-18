@@ -3,6 +3,7 @@
 #include <sstream>
 #include "fs.h"
 #include <random>
+#include <cstring>
 
 FS::FS()
 {
@@ -30,17 +31,10 @@ void FS::FormatBlocks()
 // Initializes a directory
 void FS::InitializeDirectory()
 {
-   dir_entry directory[64];
+    std::vector<dir_entry> root;
+    root.reserve(64);
 
-    for (int i = 0; i < 64; ++i)
-    {
-        dir_entry initalizedEntry;
-        initalizedEntry.type = -1;
-
-        directory[i] = initalizedEntry;
-    }
-
-    directoryVector.push_back(directory);
+    directoryVector.push_back(root);
 }
 
 // formats the disk, i.e., creates an empty file system
@@ -54,7 +48,8 @@ int FS::format()
     return 0;
 }
 
-// Splits filepath string into substrings of subdirectories and filename and returns vector of them
+// Splits filepath string into substrings of subdirectories and filename 
+// and returns vector of them
 std::vector<std::string> FS::SplitFilepath(std::string &filepath) const
 {
     std::vector<std::string> subStringVector;
@@ -82,9 +77,17 @@ std::string FS::GetFilenameFromFilepath(std::string &filepath) const
 // Checks whether the create-command is valid
 int FS::CheckValidCreate(std::string &filepath) const
 {
-    if (GetFilenameFromFilepath(filepath).length() > 56){
+
+    std::string filename = GetFilenameFromFilepath(filepath);
+
+    if (filename.length() > 56){
         std::cout << "Filename is too long" << std::endl;
         return -1;
+    }
+
+    for (auto file : directoryVector.at(0)) // ONLY CHECKS ROOT DIRECTORY
+    {
+        if name
     }
 
     return 0;
@@ -110,7 +113,7 @@ void FS::SaveInputToString(int &length, std::string &inputString)
 }
 
 // Divides input string into 4096-byte sized blocks and returns a vector with these blocks.
-std::vector<std::string> FS::DivideStringIntoBlocks(std::string &inputString) const
+std::vector<std::string> FS::DivideStringIntoBlocks(std::string const &inputString) const
 {
     int maxIndex = static_cast<int>(inputString.size() / BLOCK_SIZE);
 
@@ -167,30 +170,43 @@ int FS::FindFreeMemoryBlocks(int const &amount, std::vector<int> &indexVector)
     return 0;
 }
 
-dir_entry FS::MakeDirEntry(std::string &filename, int &size, int &firstBlock, int &type, int &accessRights)
+// Constructs and returns a dir_entry
+dir_entry FS::MakeDirEntry(std::string const &filename, int const &size, int const &firstBlock, int const &type, int const &accessRights)
 {
-    dir_entry DirEntry;
+    dir_entry DirEntry; 
 
-    DirEntry.file_name = filename.c_str();
-    DirEntry.size = std::static_cast<u_int32_t>(size);
-    DirEntry.first_blk = ()firstBlock;
-
+    strcpy(DirEntry.file_name, filename.c_str());
+    DirEntry.size = static_cast<u_int32_t>(size);
+    DirEntry.first_blk = static_cast<u_int16_t>(firstBlock);
+    DirEntry.type = static_cast<u_int8_t>(type);
+    DirEntry.access_rights = static_cast<u_int8_t>(accessRights);
 
     return DirEntry;
 }
 
-void FS::WriteToMemory(dir_entry* directory, dir_entry &dirEntry, std::vector<int> &indexVector, std::vector<std::string> &blockVector)
+// Writes contents of the blockVector into the disk at the indices
+// in the indexVector and adds dirEntry into the correct directory
+int FS::WriteToMemory(std::vector<dir_entry> &directory, dir_entry &dirEntry, std::vector<int> &indexVector, std::vector<std::string> &blockVector)
 {
+    if (directory.size() == 64)
+    {
+        std::cout << "Directory is already at max capacity (64)" << std::endl;
+        return -1;
+    }
+
     for (int i = 0; i < indexVector.size() - 1; ++i)
     {
         this->fat[indexVector.at(i)] = indexVector.at(i + 1);
-        disk.write(indexVector.at(i), (uint8_t*)blockVector.at(i).c_str());
+        disk.write(indexVector.at(i), (uint8_t*)blockVector.at(i).c_str()); // Neither static_cast nor reinterpret_cast work. C-style conversion works though.
     }
+
     this->fat[indexVector.back()] = FAT_EOF;
     disk.write(indexVector.back(), (u_int8_t*)blockVector.back().c_str());
 
+    directory.push_back(dirEntry);
+    disk.write(0, (uint8_t*)directory.data()); // ONLY WRITES TO ROOT DIRECTORY
 
-
+    return 0;
 }
 
 // create <filepath> creates a new file on the disk, the data content is
@@ -214,10 +230,10 @@ int FS::create(std::string filepath)
     {
         return -1;
     }
+    
+    dir_entry dirEntry = MakeDirEntry(GetFilenameFromFilepath(filepath), length, indexVector.at(0), TYPE_FILE, READ | WRITE | EXECUTE);
 
-
-
-    WriteToMemory(directoryVector.at(0), )
+    WriteToMemory(directoryVector.at(0) /*ROOT DIRECTORY*/, dirEntry, indexVector, blockVector);
 
     return 0;
 }

@@ -34,9 +34,9 @@ private:
     // size of a FAT entry is 2 bytes
     int16_t fat[BLOCK_SIZE/2];
     
-    std::vector<dir_entry*> directoryVector;
+    std::vector<std::vector<dir_entry>> directoryVector;
 
-    std::unordered_map<std::string, int> directoryIndexHashMap;
+    std::unordered_map<std::vector<dir_entry>, int> directoryIndexHashMap;
     
     
     /*
@@ -51,10 +51,10 @@ private:
 
     int CheckValidCreate(std::string &filepath) const;
     void SaveInputToString(int &length, std::string &inputString);
-    std::vector<std::string> DivideStringIntoBlocks(std::string &inputString) const;
+    std::vector<std::string> DivideStringIntoBlocks(std::string const &inputString) const;
     int FindFreeMemoryBlocks(int const &amount, std::vector<int> &indexVector);
-    dir_entry MakeDirEntry(std::string &filename, int &size, int &firstBlock, int &type, int &accessRights);
-    void WriteToMemory(dir_entry* directory, dir_entry &dirEntry, std::vector<int> &indexVector, std::vector<std::string> &blockVector);
+    dir_entry MakeDirEntry(std::string const &filename, int const &size, int const &firstBlock, int const &type, int const &accessRights);
+    int WriteToMemory(std::vector<dir_entry> &directory, dir_entry &dirEntry, std::vector<int> &indexVector, std::vector<std::string> &blockVector);
 
 public:
     FS();
