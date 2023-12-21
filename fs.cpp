@@ -9,7 +9,7 @@ FS::FS()
 {
     std::cout << "FS::FS()... Creating file system\n";
     srand(time(NULL));
-}
+    }
 
 FS::~FS()
 {
@@ -28,13 +28,14 @@ void FS::FormatBlocks()
     }
 }
 
-// Initializes a directory
-void FS::InitializeDirectory()
+// Initializes the root directory
+void FS::InitializeRoot()
 {
     std::vector<dir_entry> root;
     root.reserve(64);
 
-    directoryVector.push_back(root);
+    this->directoryTree.value = root;
+    this->directoryTree.directoryName = "";
 }
 
 // formats the disk, i.e., creates an empty file system
@@ -43,14 +44,18 @@ int FS::format()
     std::cout << "FS::format()\n";
 
     FormatBlocks();
-    InitializeDirectory(); // Initializes Root-directory
+    InitializeRoot(); // Initializes Root-directory
 
     return 0;
 }
 
 // Splits filepath string into substrings of subdirectories and filename 
 // and returns vector of them
-std::vector<std::string> FS::SplitFilepath(std::string &filepath) const
+//
+// -----
+//
+// std::string const &filepath - The filepath 
+std::vector<std::string> FS::SplitFilepath(std::string const &filepath) const
 {
     std::vector<std::string> subStringVector;
 
@@ -67,7 +72,11 @@ std::vector<std::string> FS::SplitFilepath(std::string &filepath) const
 }
 
 // Returns the last substring in subdirectory and filename vector
-std::string FS::GetFilenameFromFilepath(std::string &filepath) const
+//
+// -----
+//
+// std::string const &filepath - The filepath 
+std::string FS::GetFilenameFromFilepath(std::string const &filepath) const
 {
     std::vector<std::string> stringVector = SplitFilepath(filepath);
 
@@ -75,7 +84,11 @@ std::string FS::GetFilenameFromFilepath(std::string &filepath) const
 }
 
 // Checks whether the create-command is valid
-int FS::CheckValidCreate(std::string &filepath) const
+//
+// -----
+//
+// std::string const &filepath - The filepath
+int FS::CheckValidCreate(std::string const &filepath) const
 {
 
     std::string filename = GetFilenameFromFilepath(filepath);
@@ -87,14 +100,23 @@ int FS::CheckValidCreate(std::string &filepath) const
 
     for (auto file : directoryVector.at(0)) // ONLY CHECKS ROOT DIRECTORY
     {
-        if name
+        if (file.file_name == filename)
+        {
+            std::cout << "File already exists in this directory" << std::endl;
+            return -1;
+        }
     }
 
     return 0;
 }
 
 // Saves the shell input into a string
-void FS::SaveInputToString(int &length, std::string &inputString)
+//
+// -----
+//
+// int &size - The size (length) of the input string including null-terminators
+// std::string &inputString - The string that was input into the shell
+void FS::SaveInputToString(int &size, std::string &inputString) const
 {
     std::string segment;
 
@@ -107,12 +129,16 @@ void FS::SaveInputToString(int &length, std::string &inputString)
             break;
         }
 
-        length += segment.size() + 1; // + 1 includes the nullterminator
+        size += segment.size() + 1; // + 1 includes the nullterminator
         inputString += inputString.empty() ? segment : "\n" + segment;
     }
 }
 
 // Divides input string into 4096-byte sized blocks and returns a vector with these blocks.
+//
+// -----
+//
+// std::string const &inputString - The string that was input in the shell
 std::vector<std::string> FS::DivideStringIntoBlocks(std::string const &inputString) const
 {
     int maxIndex = static_cast<int>(inputString.size() / BLOCK_SIZE);
@@ -129,6 +155,11 @@ std::vector<std::string> FS::DivideStringIntoBlocks(std::string const &inputStri
 }
 
 // Returns whether there is a sufficient amount of available free memory blocks
+//
+// -----
+//
+// int const &amount - The amount of blocks to be allocated
+// std::vector<int> &indexVector - Vector of the indices of the allocated blocks
 int FS::FindFreeMemoryBlocks(int const &amount, std::vector<int> &indexVector)
 {
     std::vector<int> tempIndexVector;
@@ -171,6 +202,14 @@ int FS::FindFreeMemoryBlocks(int const &amount, std::vector<int> &indexVector)
 }
 
 // Constructs and returns a dir_entry
+//
+// -----
+//
+// std::string const &filename - The filename of the file
+// int const &size - Size of the file
+// int const &firstBlock - The first block of the file
+// int const &type - The type of the file (file or directory)
+// int const &accessRights - The bitflags of access rights to the file 
 dir_entry FS::MakeDirEntry(std::string const &filename, int const &size, int const &firstBlock, int const &type, int const &accessRights)
 {
     dir_entry DirEntry; 
@@ -186,7 +225,14 @@ dir_entry FS::MakeDirEntry(std::string const &filename, int const &size, int con
 
 // Writes contents of the blockVector into the disk at the indices
 // in the indexVector and adds dirEntry into the correct directory
-int FS::WriteToMemory(std::vector<dir_entry> &directory, dir_entry &dirEntry, std::vector<int> &indexVector, std::vector<std::string> &blockVector)
+//
+// -----
+//
+// std::vector<dir_entry> &directory - The directory to be written to
+// dir_entry const &dirEntry - The directory entry to be written
+// std::vector<int> const &indexVector - The vector of indices of the blocks that the file will occupying
+// std::vector<std::string> const &blockVector - The vector with the file data to be written (in blocks)
+int FS::WriteToMemory(std::vector<dir_entry> &directory, dir_entry const &dirEntry, std::vector<int> const &indexVector, std::vector<std::string> const &blockVector)
 {
     if (directory.size() == 64)
     {
@@ -201,10 +247,14 @@ int FS::WriteToMemory(std::vector<dir_entry> &directory, dir_entry &dirEntry, st
     }
 
     this->fat[indexVector.back()] = FAT_EOF;
-    disk.write(indexVector.back(), (u_int8_t*)blockVector.back().c_str());
+    disk.write(indexVector.back(), (uint8_t*)blockVector.back().c_str());
 
     directory.push_back(dirEntry);
-    disk.write(0, (uint8_t*)directory.data()); // ONLY WRITES TO ROOT DIRECTORY
+
+    for (int i = 0; i < directory.size(); ++i)
+    {
+        disk.write(0, (uint8_t*)(directory.data() + i)); // ONLY WRITES TO ROOT DIRECTORY
+    }
 
     return 0;
 }
@@ -220,22 +270,58 @@ int FS::create(std::string filepath)
         return -1;
     }
 
-    int length = 0; std::string inputString = "";
-    SaveInputToString(length, inputString);
+    int size = 0; std::string inputString = "";
+    SaveInputToString(size, inputString);
 
     std::vector<std::string> blockVector = DivideStringIntoBlocks(inputString);
 
+    
     std::vector<int> indexVector;
     if (FindFreeMemoryBlocks(blockVector.size(), indexVector) == -1)
     {
         return -1;
     }
     
-    dir_entry dirEntry = MakeDirEntry(GetFilenameFromFilepath(filepath), length, indexVector.at(0), TYPE_FILE, READ | WRITE | EXECUTE);
+    
+    dir_entry dirEntry = MakeDirEntry(GetFilenameFromFilepath(filepath), size, indexVector.at(0), TYPE_FILE, READ | WRITE | EXECUTE);
 
     WriteToMemory(directoryVector.at(0) /*ROOT DIRECTORY*/, dirEntry, indexVector, blockVector);
 
     return 0;
+}
+
+void FS::ReadBlocksFromMemory()
+{
+
+}
+
+void FS::GetFileDirEntry()
+{
+    
+}
+
+std::vector<dir_entry> FS::TraverseDirectoryTree(std::string const &filepath, TreeNode<std::vector<dir_entry>> const &dirTreeRoot)
+{
+    std::vector<std::string> filenameVector = SplitFilepath(filepath);
+ 
+    if (filenameVector.size() == 1)
+    {
+        return dirTreeRoot.value;
+    }
+    
+    TreeNode<std::vector<dir_entry>> currDirectory = dirTreeRoot;
+
+    for (int i = 0; i < filenameVector.size() - 1; ++i)
+    {
+        for (TreeNode<std::vector<dir_entry>> directory : currDirectory.children)
+        {
+            if (directory.directoryName == filenameVector.at(i))
+            {
+                currDirectory = directory;
+                break;
+            }
+        }
+    }
 }
 
 // cat <filepath> reads the content of a file and prints it on the screen

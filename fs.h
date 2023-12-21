@@ -3,7 +3,8 @@
 #include "disk.h"
 #include <string>
 #include <vector>
-#include <unordered_map>
+#include <array>
+//#include <unordered_map>
 
 #ifndef __FS_H__
 #define __FS_H__
@@ -25,7 +26,7 @@ struct dir_entry {
     uint32_t size; // size of the file in bytes
     uint16_t first_blk; // index in the FAT for the first block of the file
     uint8_t type; // directory (1), file (0) or initialized (-1)
-    uint8_t access_rights; // read (0x04), write (0x02), execute (0x01)
+    uint8_t access_rights; // read (0b100), write (0b01), execute (0b1)
 };
 
 class FS {
@@ -33,28 +34,45 @@ private:
     Disk disk;
     // size of a FAT entry is 2 bytes
     int16_t fat[BLOCK_SIZE/2];
+
+    /*
+        Custom Created Private Variables
+    */
     
     std::vector<std::vector<dir_entry>> directoryVector;
 
-    std::unordered_map<std::vector<dir_entry>, int> directoryIndexHashMap;
-    
-    
+    std::string currentFilepath = "";
+
+    template<class T>
+    struct TreeNode 
+    {
+        T value;
+        std::string directoryName;
+        std::vector<TreeNode> children;
+    };
+
+    TreeNode<std::vector<dir_entry>> directoryTree;
+
     /*
         Custom Created Private Functions
     */
 
     void FormatBlocks();
-    void InitializeDirectory();
+    void InitializeRoot();
 
-    std::vector<std::string> SplitFilepath(std::string &filepath) const;
-    std::string GetFilenameFromFilepath(std::string &filepath) const;
+    std::vector<std::string> SplitFilepath(std::string const &filepath) const;
+    std::string GetFilenameFromFilepath(std::string const &filepath) const;
 
-    int CheckValidCreate(std::string &filepath) const;
-    void SaveInputToString(int &length, std::string &inputString);
+    int CheckValidCreate(std::string const &filepath) const;
+    void SaveInputToString(int &length, std::string &inputString) const;
     std::vector<std::string> DivideStringIntoBlocks(std::string const &inputString) const;
     int FindFreeMemoryBlocks(int const &amount, std::vector<int> &indexVector);
     dir_entry MakeDirEntry(std::string const &filename, int const &size, int const &firstBlock, int const &type, int const &accessRights);
-    int WriteToMemory(std::vector<dir_entry> &directory, dir_entry &dirEntry, std::vector<int> &indexVector, std::vector<std::string> &blockVector);
+    int WriteToMemory(std::vector<dir_entry> &directory, dir_entry const &dirEntry, std::vector<int> const &indexVector, std::vector<std::string> const &blockVector);
+
+    void ReadBlocksFromMemory();
+    void GetFileDirEntry();
+    std::vector<dir_entry> TraverseDirectoryTree(std::string const &filepath, TreeNode<std::vector<dir_entry>> const &dirTreeRoot);
 
 public:
     FS();

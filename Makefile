@@ -1,5 +1,6 @@
 GCC=g++
 #GCC=g++-11
+Optimization=-O0
 
 all: filesystem tests
 
@@ -7,31 +8,31 @@ filesystem: main.o shell.o fs.o disk.o
 	$(GCC) -std=c++11 -o filesystem main.o shell.o disk.o fs.o
 
 main.o: main.cpp shell.h disk.h
-	$(GCC) -std=c++11 -O2 -c main.cpp
+	$(GCC) -std=c++11 $(Optimization) -c main.cpp
 
 shell.o: shell.cpp shell.h fs.h disk.h
-	$(GCC) -std=c++11 -O2 -c shell.cpp
+	$(GCC) -std=c++11 $(Optimization) -c shell.cpp
 
 fs.o: fs.cpp fs.h disk.h
-	$(GCC) -std=c++11 -O2 -c fs.cpp
+	$(GCC) -std=c++11 $(Optimization) -c fs.cpp
 
 disk.o: disk.cpp disk.h
-	$(GCC) -std=c++11 -O2 -c disk.cpp
+	$(GCC) -std=c++11 $(Optimization) -c disk.cpp
 
 test_script1.o: test_script1.cpp test_script.h fs.h disk.h
-	$(GCC) -std=c++11 -O2 -c test_script1.cpp
+	$(GCC) -std=c++11 $(Optimization) -c test_script1.cpp
 
 test_script2.o: test_script2.cpp test_script.h fs.h disk.h
-	$(GCC) -std=c++11 -O2 -c test_script2.cpp
+	$(GCC) -std=c++11 $(Optimization) -c test_script2.cpp
 
 test_script3.o: test_script3.cpp test_script.h fs.h disk.h
-	$(GCC) -std=c++11 -O2 -c test_script3.cpp
+	$(GCC) -std=c++11 $(Optimization) -c test_script3.cpp
 
 test_script4.o: test_script4.cpp test_script.h fs.h disk.h
-	$(GCC) -std=c++11 -O2 -c test_script4.cpp
+	$(GCC) -std=c++11 $(Optimization) -c test_script4.cpp
 
 test_script5.o: test_script5.cpp test_script.h fs.h disk.h
-	$(GCC) -std=c++11 -O2 -c test_script5.cpp
+	$(GCC) -std=c++11 $(Optimization) -c test_script5.cpp
 
 test: main.o test_script.o fs.o disk.o
 	$(GCC) -std=c++11 -o test_script main.o test_script.o disk.o fs.o
