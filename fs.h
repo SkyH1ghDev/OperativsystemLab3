@@ -67,9 +67,9 @@ private:
 
     // Format()
 
-    int SplitFilepath(std::string const &filepath, std::vector<std::string> &subStringVector) const;
+    std::vector<std::string> SplitFilepath(std::string const &filepath) const;
     std::string ConcatenateFilepath(std::vector<std::string> const &filenames) const;
-    int GetFilenameFromFilepath(std::string const &filepath, std::string &filename) const;
+    std::string GetFilenameFromFilepath(std::string const &filepath) const;
     
     int CheckValidCreate(std::string const &filepath) const;
     void SaveInputToString(int &length, std::string &inputString) const;

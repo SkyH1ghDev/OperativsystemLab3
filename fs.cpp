@@ -57,8 +57,9 @@ int FS::format()
 // -----
 //
 // std::string const &filepath - The filepath 
-int FS::SplitFilepath(std::string const &filepath, std::vector<std::string> &subStringVector) const
+std::vector<std::string> FS::SplitFilepath(std::string const &filepath) const
 {
+    std::vector<std::string> subStringVector;
     std::stringstream ss(filepath);
 
     while (ss.good())
@@ -71,15 +72,14 @@ int FS::SplitFilepath(std::string const &filepath, std::vector<std::string> &sub
         }
     }
 
-    if (subStringVector.empty())
-    {
-        std::cout << "Cannot parse invalid filepath" << std::endl;
-        return -1;
-    }
-
-    return 0;
+    return subStringVector;
 }
 
+// Concatenates substrings in a vector into a single string
+// 
+// -----
+//
+// std::vector<std::string> const &filenames - Vector of substrings to be concatenated
 std::string FS::ConcatenateFilepath(std::vector<std::string> const &filenames) const
 {
     std::string filepath = "/";
@@ -97,16 +97,10 @@ std::string FS::ConcatenateFilepath(std::vector<std::string> const &filenames) c
 // -----
 //
 // std::string const &filepath - The filepath 
-int FS::GetFilenameFromFilepath(std::string const &filepath, std::string &filename) const
+std::string FS::GetFilenameFromFilepath(std::string const &filepath) const
 {
-    std::vector<std::string> stringVector; 
-    if (SplitFilepath(filepath, stringVector) == -1)
-    {
-        return -1;       
-    }
-
-    filename = stringVector.back();
-    return 0;
+    std::vector<std::string> stringVector = SplitFilepath(filepath);
+    return stringVector.back();
 }
 
 // Checks whether the create-command is valid
@@ -117,11 +111,7 @@ int FS::GetFilenameFromFilepath(std::string const &filepath, std::string &filena
 int FS::CheckValidCreate(std::string const &filepath) const
 {
 
-    std::string filename;
-    if (GetFilenameFromFilepath(filepath, filename) == -1)
-    {
-        return -1;
-    }
+    std::string filename = GetFilenameFromFilepath(filepath);
 
     if (filename.length() > 56){
         std::cout << "Filename is too long" << std::endl;
@@ -312,11 +302,7 @@ int FS::create(std::string filepath)
         return -1;
     }
     
-    std::string filename;
-    if (GetFilenameFromFilepath(filepath, filename) == -1)
-    {
-        return -1;
-    }
+    std::string filename = GetFilenameFromFilepath(filepath);
     
     dir_entry dirEntry = MakeDirEntry(filename, size, indexVector.at(0), TYPE_FILE, READ | WRITE | EXECUTE);
 
@@ -327,23 +313,19 @@ int FS::create(std::string filepath)
 
 void FS::ReadBlocksFromMemory(dir_entry &file)
 {
-
+    
 }
 
-// Assumes that filepath only consists of directories
+// Moves down the directoryTree in search of a 
 int FS::TraverseDirectoryTree(std::string const &filepath, TreeNode<std::vector<dir_entry>> const &dirTreeRoot, std::vector<dir_entry> &directory)
 {
-    std::vector<std::string> filenameVector;
-    if (SplitFilepath(filepath, filenameVector) == -1)
-    {
-        return -1;
-    }
-
-    if (filenameVector.empty())
+    std::vector<std::string> filenameVector = SplitFilepath(filepath);
+    
+    if (filenameVector.empty());
     {
         directory = dirTreeRoot.value;
     }
-    
+
     TreeNode<std::vector<dir_entry>> currDirectory = dirTreeRoot;
 
 
@@ -375,9 +357,11 @@ int FS::TraverseDirectoryTree(std::string const &filepath, TreeNode<std::vector<
 
 int FS::GetFileDirEntry(std::string const &filepath, TreeNode<std::vector<dir_entry>> const &dirTreeRoot, dir_entry &file)
 {
-    std::vector<std::string> filenameVector;
-    if (SplitFilepath(filepath, filenameVector) == -1)
+    std::vector<std::string> filenameVector = SplitFilepath(filepath);
+
+    if (filenameVector.empty())
     {
+        std::cout << "The file does not exist" << std::endl;
         return -1;
     }
 
