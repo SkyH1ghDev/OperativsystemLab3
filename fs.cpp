@@ -4,6 +4,7 @@
 #include "fs.h"
 #include <random>
 #include <cstring>
+#include <algorithm>
 
 FS::FS()
 {
@@ -35,7 +36,8 @@ void FS::InitializeRoot()
     root.reserve(64);
 
     this->directoryTree.value = root;
-    this->directoryTree.directoryName = "";
+    this->directoryTree.name = "";
+    this->directoryTreeWorkingDirectory.value = root;
 }
 
 // formats the disk, i.e., creates an empty file system
@@ -50,7 +52,7 @@ int FS::format()
 }
 
 // Splits filepath string into substrings of subdirectories and filename 
-// and returns vector of them
+// and returns vector of them (Does not include the root ("") as a substring)
 //
 // -----
 //
@@ -65,10 +67,25 @@ std::vector<std::string> FS::SplitFilepath(std::string const &filepath) const
     {
         std::string subString;
         getline(ss, subString, '/');
-        subStringVector.push_back(subString);
+        if (subString != "")
+        {
+            subStringVector.push_back(subString);
+        }
     }
 
     return subStringVector;
+}
+
+std::string FS::ConcatenateFilepath(std::vector<std::string> const &filenames) const
+{
+    std::string filepath = "/";
+
+    for (std::string filename : filenames)
+    {
+        filepath += filename + "/";
+    }
+
+    return filepath;
 }
 
 // Returns the last substring in subdirectory and filename vector
@@ -98,7 +115,7 @@ int FS::CheckValidCreate(std::string const &filepath) const
         return -1;
     }
 
-    for (auto file : directoryVector.at(0)) // ONLY CHECKS ROOT DIRECTORY
+    for (auto file : this->directoryTreeWorkingDirectory.value)
     {
         if (file.file_name == filename)
         {
@@ -285,7 +302,7 @@ int FS::create(std::string filepath)
     
     dir_entry dirEntry = MakeDirEntry(GetFilenameFromFilepath(filepath), size, indexVector.at(0), TYPE_FILE, READ | WRITE | EXECUTE);
 
-    WriteToMemory(directoryVector.at(0) /*ROOT DIRECTORY*/, dirEntry, indexVector, blockVector);
+    WriteToMemory(this->directoryTreeWorkingDirectory.value, dirEntry, indexVector, blockVector);
 
     return 0;
 }
@@ -295,39 +312,85 @@ void FS::ReadBlocksFromMemory()
 
 }
 
-void FS::GetFileDirEntry()
-{
-    
-}
-
-std::vector<dir_entry> FS::TraverseDirectoryTree(std::string const &filepath, TreeNode<std::vector<dir_entry>> const &dirTreeRoot)
+// Assumes that filepath only consists of directories
+int FS::TraverseDirectoryTree(std::string const &filepath, TreeNode<std::vector<dir_entry>> const &dirTreeRoot, std::vector<dir_entry> &directory)
 {
     std::vector<std::string> filenameVector = SplitFilepath(filepath);
- 
-    if (filenameVector.size() == 1)
+
+    if (filenameVector.empty())
     {
-        return dirTreeRoot.value;
+        directory = dirTreeRoot.value;
     }
     
     TreeNode<std::vector<dir_entry>> currDirectory = dirTreeRoot;
 
-    for (int i = 0; i < filenameVector.size() - 1; ++i)
+
+    for (int i = 0; i < filenameVector.size(); ++i)
     {
-        for (TreeNode<std::vector<dir_entry>> directory : currDirectory.children)
+        bool directoryExists = false;
+
+        for (TreeNode<std::vector<dir_entry>> node : currDirectory.children)
         {
-            if (directory.directoryName == filenameVector.at(i))
+            if (node.name == filenameVector.at(i))
             {
-                currDirectory = directory;
+                currDirectory = node;
+                directoryExists = true;
                 break;
             }
         }
+
+        if (!directoryExists)
+        {
+            std::cout << "Filepath is invalid" << std::endl;
+            return -1;
+        }
     }
+
+    directory = currDirectory.value;
+
+    return 0;
+}
+
+int FS::GetFileDirEntry(std::string const &filepath, TreeNode<std::vector<dir_entry>> const &dirTreeRoot, dir_entry &file)
+{
+    std::vector<std::string> filenameVector = SplitFilepath(filepath);
+    std::vector<std::string> directoryFilenames(filenameVector.begin(), filenameVector.end() - 1);
+    std::vector<dir_entry> workingDirectory;
+
+    if (TraverseDirectoryTree(ConcatenateFilepath(directoryFilenames), dirTreeRoot, workingDirectory) == -1)
+    {
+        return -1;
+    }
+
+    for (dir_entry tempFile : workingDirectory)
+    {
+        if (tempFile.file_name == filenameVector.back())
+        {
+            file = tempFile;
+            return 0;
+        }
+
+        std::cout << "The file does not exist" << std::endl;
+        return -1;
+    }
+
+    return 0;
 }
 
 // cat <filepath> reads the content of a file and prints it on the screen
 int FS::cat(std::string filepath)
 {
     std::cout << "FS::cat(" << filepath << ")\n";
+
+    dir_entry file;
+    
+    if (GetFileDirEntry(filepath, this->directoryTreeWorkingDirectory, file) == -1)
+    {
+        return -1;
+    }
+
+    std::cout << file.file_name << std::endl;
+
     return 0;
 }
 

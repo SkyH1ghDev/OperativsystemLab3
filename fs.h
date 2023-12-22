@@ -39,19 +39,24 @@ private:
         Custom Created Private Variables
     */
     
-    std::vector<std::vector<dir_entry>> directoryVector;
-
-    std::string currentFilepath = "";
-
     template<class T>
     struct TreeNode 
     {
         T value;
-        std::string directoryName;
+        std::string name;
         std::vector<TreeNode> children;
     };
 
+
+    // Root-node of the entire directory tree
     TreeNode<std::vector<dir_entry>> directoryTree;
+
+    // Node of the current working directory
+    TreeNode<std::vector<dir_entry>> directoryTreeWorkingDirectory;
+
+    // The filepath to the working directory
+    std::string currentFilepath = "";
+
 
     /*
         Custom Created Private Functions
@@ -60,9 +65,12 @@ private:
     void FormatBlocks();
     void InitializeRoot();
 
-    std::vector<std::string> SplitFilepath(std::string const &filepath) const;
-    std::string GetFilenameFromFilepath(std::string const &filepath) const;
+    // Format()
 
+    std::vector<std::string> SplitFilepath(std::string const &filepath) const;
+    std::string ConcatenateFilepath(std::vector<std::string> const &filenames) const;
+    std::string GetFilenameFromFilepath(std::string const &filepath) const;
+    
     int CheckValidCreate(std::string const &filepath) const;
     void SaveInputToString(int &length, std::string &inputString) const;
     std::vector<std::string> DivideStringIntoBlocks(std::string const &inputString) const;
@@ -70,9 +78,12 @@ private:
     dir_entry MakeDirEntry(std::string const &filename, int const &size, int const &firstBlock, int const &type, int const &accessRights);
     int WriteToMemory(std::vector<dir_entry> &directory, dir_entry const &dirEntry, std::vector<int> const &indexVector, std::vector<std::string> const &blockVector);
 
+    // Create()
+
     void ReadBlocksFromMemory();
-    void GetFileDirEntry();
-    std::vector<dir_entry> TraverseDirectoryTree(std::string const &filepath, TreeNode<std::vector<dir_entry>> const &dirTreeRoot);
+
+    int GetFileDirEntry(std::string const &filepath, TreeNode<std::vector<dir_entry>> const & dirTreeRoot, dir_entry &file);
+    int TraverseDirectoryTree(std::string const &filepath, TreeNode<std::vector<dir_entry>> const &dirTreeRoot, std::vector<dir_entry> &directory);
 
 public:
     FS();
