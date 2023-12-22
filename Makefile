@@ -1,6 +1,6 @@
 GCC=g++
 #GCC=g++-11
-Optimization=-O0
+Optimization=-O0 -g
 
 all: filesystem tests
 

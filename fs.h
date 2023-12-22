@@ -67,9 +67,9 @@ private:
 
     // Format()
 
-    std::vector<std::string> SplitFilepath(std::string const &filepath) const;
+    int SplitFilepath(std::string const &filepath, std::vector<std::string> &subStringVector) const;
     std::string ConcatenateFilepath(std::vector<std::string> const &filenames) const;
-    std::string GetFilenameFromFilepath(std::string const &filepath) const;
+    int GetFilenameFromFilepath(std::string const &filepath, std::string &filename) const;
     
     int CheckValidCreate(std::string const &filepath) const;
     void SaveInputToString(int &length, std::string &inputString) const;
@@ -80,7 +80,7 @@ private:
 
     // Create()
 
-    void ReadBlocksFromMemory();
+    void ReadBlocksFromMemory(dir_entry &file);
 
     int GetFileDirEntry(std::string const &filepath, TreeNode<std::vector<dir_entry>> const & dirTreeRoot, dir_entry &file);
     int TraverseDirectoryTree(std::string const &filepath, TreeNode<std::vector<dir_entry>> const &dirTreeRoot, std::vector<dir_entry> &directory);

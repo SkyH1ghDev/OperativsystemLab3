@@ -57,10 +57,8 @@ int FS::format()
 // -----
 //
 // std::string const &filepath - The filepath 
-std::vector<std::string> FS::SplitFilepath(std::string const &filepath) const
+int FS::SplitFilepath(std::string const &filepath, std::vector<std::string> &subStringVector) const
 {
-    std::vector<std::string> subStringVector;
-
     std::stringstream ss(filepath);
 
     while (ss.good())
@@ -73,7 +71,13 @@ std::vector<std::string> FS::SplitFilepath(std::string const &filepath) const
         }
     }
 
-    return subStringVector;
+    if (subStringVector.empty())
+    {
+        std::cout << "Cannot parse invalid filepath" << std::endl;
+        return -1;
+    }
+
+    return 0;
 }
 
 std::string FS::ConcatenateFilepath(std::vector<std::string> const &filenames) const
@@ -93,11 +97,16 @@ std::string FS::ConcatenateFilepath(std::vector<std::string> const &filenames) c
 // -----
 //
 // std::string const &filepath - The filepath 
-std::string FS::GetFilenameFromFilepath(std::string const &filepath) const
+int FS::GetFilenameFromFilepath(std::string const &filepath, std::string &filename) const
 {
-    std::vector<std::string> stringVector = SplitFilepath(filepath);
+    std::vector<std::string> stringVector; 
+    if (SplitFilepath(filepath, stringVector) == -1)
+    {
+        return -1;       
+    }
 
-    return stringVector.back();
+    filename = stringVector.back();
+    return 0;
 }
 
 // Checks whether the create-command is valid
@@ -108,7 +117,11 @@ std::string FS::GetFilenameFromFilepath(std::string const &filepath) const
 int FS::CheckValidCreate(std::string const &filepath) const
 {
 
-    std::string filename = GetFilenameFromFilepath(filepath);
+    std::string filename;
+    if (GetFilenameFromFilepath(filepath, filename) == -1)
+    {
+        return -1;
+    }
 
     if (filename.length() > 56){
         std::cout << "Filename is too long" << std::endl;
@@ -299,15 +312,20 @@ int FS::create(std::string filepath)
         return -1;
     }
     
+    std::string filename;
+    if (GetFilenameFromFilepath(filepath, filename) == -1)
+    {
+        return -1;
+    }
     
-    dir_entry dirEntry = MakeDirEntry(GetFilenameFromFilepath(filepath), size, indexVector.at(0), TYPE_FILE, READ | WRITE | EXECUTE);
+    dir_entry dirEntry = MakeDirEntry(filename, size, indexVector.at(0), TYPE_FILE, READ | WRITE | EXECUTE);
 
     WriteToMemory(this->directoryTreeWorkingDirectory.value, dirEntry, indexVector, blockVector);
 
     return 0;
 }
 
-void FS::ReadBlocksFromMemory()
+void FS::ReadBlocksFromMemory(dir_entry &file)
 {
 
 }
@@ -315,7 +333,11 @@ void FS::ReadBlocksFromMemory()
 // Assumes that filepath only consists of directories
 int FS::TraverseDirectoryTree(std::string const &filepath, TreeNode<std::vector<dir_entry>> const &dirTreeRoot, std::vector<dir_entry> &directory)
 {
-    std::vector<std::string> filenameVector = SplitFilepath(filepath);
+    std::vector<std::string> filenameVector;
+    if (SplitFilepath(filepath, filenameVector) == -1)
+    {
+        return -1;
+    }
 
     if (filenameVector.empty())
     {
@@ -353,13 +375,24 @@ int FS::TraverseDirectoryTree(std::string const &filepath, TreeNode<std::vector<
 
 int FS::GetFileDirEntry(std::string const &filepath, TreeNode<std::vector<dir_entry>> const &dirTreeRoot, dir_entry &file)
 {
-    std::vector<std::string> filenameVector = SplitFilepath(filepath);
+    std::vector<std::string> filenameVector;
+    if (SplitFilepath(filepath, filenameVector) == -1)
+    {
+        return -1;
+    }
+
     std::vector<std::string> directoryFilenames(filenameVector.begin(), filenameVector.end() - 1);
     std::vector<dir_entry> workingDirectory;
 
     if (TraverseDirectoryTree(ConcatenateFilepath(directoryFilenames), dirTreeRoot, workingDirectory) == -1)
     {
         return -1;
+    }
+
+    if (workingDirectory.empty())
+    {
+        std::cout << "The file does not exist" << std::endl;
+        return -1; 
     }
 
     for (dir_entry tempFile : workingDirectory)
@@ -398,6 +431,20 @@ int FS::cat(std::string filepath)
 int FS::ls()
 {
     std::cout << "FS::ls()\n";
+
+    if (directoryTreeWorkingDirectory.value.empty())
+    {
+        std::cout << "This directory is empty..." << std::endl; 
+    }
+    else 
+    {
+        std::cout << "Filename \t\t Size (Bytes) \n";
+        for (dir_entry file : directoryTreeWorkingDirectory.value)
+        {
+            std::cout << file.file_name << " \t\t\t " << file.size << std::endl;
+        }
+    }
+
     return 0;
 }
 
