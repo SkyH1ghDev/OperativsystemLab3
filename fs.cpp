@@ -472,13 +472,30 @@ int FS::cp(std::string sourcepath, std::string destpath)
 
 	std::vector<std::string> sourceFilenameVector = SplitFilepath(sourcepath);
 
-
 	dir_entry sourceFile{};
 
 	if (GetFileDirEntry(sourcepath, this->directoryTreeWorkingDirectory, sourceFile) == -1)
 	{
 		return -1;
 	}
+
+	std::string sourceString = ReadBlocksFromMemory(sourceFile);
+
+	std::vector<std::string> blockVector = DivideStringIntoBlocks(sourceString);
+
+	std::vector<int> indexVector;
+
+	if (FindFreeMemoryBlocks(blockVector.size(), indexVector) == -1)
+	{
+		return -1;
+	}
+
+	std::string copyFilename = GetFilenameFromFilepath(destpath);
+
+	dir_entry copyDirEntry = MakeDirEntry(copyFilename, sourceFile.size, indexVector.at(0), TYPE_FILE,
+	                                      READ | WRITE | EXECUTE);
+
+	WriteToMemory(this->directoryTreeWorkingDirectory.value, copyDirEntry, indexVector, blockVector);
 
 	return 0;
 }
