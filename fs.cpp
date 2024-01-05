@@ -37,6 +37,7 @@ void FS::InitializeRoot()
 
 	this->directoryTree.value = root;
 	this->directoryTree.name = "";
+	this->directoryTree.parent = &(this->directoryTree);
 	this->directoryTreeWorkingDirectory.value = root;
 }
 
@@ -73,23 +74,6 @@ std::vector<std::string> FS::SplitFilepath(std::string const &filepath)
 	return subStringVector;
 }
 
-// Concatenates substrings in a vector into a single string
-// 
-// -----
-//
-// std::vector<std::string> const &filenames - Vector of substrings to be concatenated
-std::string FS::ConcatenateFilepath(std::vector<std::string> const &filenames)
-{
-	std::string filepath = "/";
-
-	for (std::string const &filename: filenames)
-	{
-		filepath += filename + "/";
-	}
-
-	return filepath;
-}
-
 // Returns the last substring in subdirectory and filename vector
 //
 // -----
@@ -106,7 +90,7 @@ std::string FS::GetFilenameFromFilepath(std::string const &filepath)
 // -----
 //
 // std::string const &filepath - The filepath
-int FS::CheckValidCreate(std::string const &filepath) const
+int FS::CheckValidCreate(std::string const &filepath)
 {
 	std::string filename = GetFilenameFromFilepath(filepath);
 
@@ -116,7 +100,10 @@ int FS::CheckValidCreate(std::string const &filepath) const
 		return -1;
 	}
 
-	for (auto file: this->directoryTreeWorkingDirectory.value)
+	FilepathType filepathType = filepath[0] == '/' ? Absolute : Relative;
+	TreeNode<std::vector<dir_entry>> *startingNodePtr = GetStartingDirectory(filepathType);
+
+	for (auto file: startingNodePtr->value)
 	{
 		if (file.file_name == filename)
 		{
@@ -314,6 +301,11 @@ int FS::create(std::string const &filepath)
 	return 0;
 }
 
+// Reads the contents of a file
+//
+// -----
+//
+// dir_entry &file - The file that is to be read.
 std::string FS::ReadBlocksFromMemory(dir_entry &file)
 {
 	int16_t currentBlock = file.first_blk;
@@ -337,32 +329,32 @@ std::string FS::ReadBlocksFromMemory(dir_entry &file)
 //
 // -----
 //
-// std::string const &filepath - The filepath
+// std::vector<std::string const &directoryFilenameVector - The vector of filenames of directories. Exclude the filename of the non-directory file (if applicable)
 // TreeNode<std::vector<dir_entry>> const &dirTreeRoot - The tree node from where traversal will begin
 // std::vector<dir_entry>** directory - The address of the directory at the end of the filepath is assigned to this variable
-int FS::TraverseDirectoryTree(std::string const &filepath, TreeNode<std::vector<dir_entry>> &dirTreeRoot,
+int FS::TraverseDirectoryTree(std::vector<std::string> const &directoryFilenameVector, FilepathType const &filepathType,
                               std::vector<dir_entry> **directory)
 {
-	std::vector<std::string> filenameVector = SplitFilepath(filepath);
+	TreeNode<std::vector<dir_entry>> *dirTreeRootPtr = GetStartingDirectory(filepathType);
 
-	if (filenameVector.empty())
+	if (directoryFilenameVector.empty())
 	{
-		*directory = &(dirTreeRoot.value);
+		*directory = &(dirTreeRootPtr->value);
 		return 0;
 	}
 
-	TreeNode<std::vector<dir_entry>> *currDirectoryNode = &dirTreeRoot;
+	TreeNode<std::vector<dir_entry>> *currDirectoryNode = dirTreeRootPtr;
 
 	std::cout << &currDirectoryNode << std::endl;
-	std::cout << &dirTreeRoot << std::endl;
+	std::cout << dirTreeRootPtr << std::endl;
 
-	for (int i = 0; i < filenameVector.size(); ++i)
+	for (int i = 0; i < directoryFilenameVector.size(); ++i)
 	{
 		bool directoryExists = false;
 
 		for (TreeNode<std::vector<dir_entry>> &node: currDirectoryNode->children)
 		{
-			if (node.name == filenameVector.at(i))
+			if (node.name == directoryFilenameVector.at(i))
 			{
 				currDirectoryNode = &node;
 				directoryExists = true;
@@ -391,7 +383,7 @@ int FS::TraverseDirectoryTree(std::string const &filepath, TreeNode<std::vector<
 // std::string const &filepath - The filepath
 // TreeNode<std::vector<dir_entry>> const & dirTreeRoot - The origin tree node from where traversal will begin
 // dir_entry &file - The file at the end of the filepath is assigned to this variable
-int FS::GetFileDirEntry(std::string const &filepath, TreeNode<std::vector<dir_entry>> &dirTreeRoot, dir_entry &file)
+int FS::GetFileDirEntry(std::string const &filepath, dir_entry **file)
 {
 	std::vector<std::string> filenameVector = SplitFilepath(filepath);
 
@@ -401,10 +393,11 @@ int FS::GetFileDirEntry(std::string const &filepath, TreeNode<std::vector<dir_en
 		return -1;
 	}
 
+	FilepathType filepathType = filepath[0] == '/' ? Absolute : Relative;
 	std::vector<std::string> directoryFilenames(filenameVector.begin(), filenameVector.end() - 1);
 	std::vector<dir_entry> *workingDirectory;
 
-	if (TraverseDirectoryTree(ConcatenateFilepath(directoryFilenames), dirTreeRoot, &workingDirectory) == -1)
+	if (TraverseDirectoryTree(directoryFilenames, filepathType, &workingDirectory) == -1)
 	{
 		return -1;
 	}
@@ -415,11 +408,11 @@ int FS::GetFileDirEntry(std::string const &filepath, TreeNode<std::vector<dir_en
 		return -1;
 	}
 
-	for (dir_entry tempFile: *workingDirectory)
+	for (dir_entry &tempFile: *workingDirectory)
 	{
 		if (tempFile.file_name == filenameVector.back())
 		{
-			file = tempFile;
+			*file = &tempFile;
 			return 0;
 		}
 
@@ -432,14 +425,14 @@ int FS::GetFileDirEntry(std::string const &filepath, TreeNode<std::vector<dir_en
 // cat <filepath> reads the content of a file and prints it on the screen
 int FS::cat(std::string const &filepath)
 {
-	dir_entry file{};
+	dir_entry *filePtr{};
 
-	if (GetFileDirEntry(filepath, this->directoryTreeWorkingDirectory, file) == -1)
+	if (GetFileDirEntry(filepath, &filePtr) == -1)
 	{
 		return -1;
 	}
 
-	std::cout << ReadBlocksFromMemory(file) << std::endl;
+	std::cout << ReadBlocksFromMemory(*filePtr) << std::endl;
 
 	return 0;
 }
@@ -448,7 +441,7 @@ int FS::cat(std::string const &filepath)
 int FS::ls()
 {
 	std::cout << "Filename\t\t\tType\t\tAccessrights\t\tSize (Bytes) \n";
-	for (dir_entry file: directoryTreeWorkingDirectory.value)
+	for (dir_entry &file: directoryTreeWorkingDirectory.value)
 	{
 		std::cout << file.file_name << "\t\t\t\t"
 		          << (file.type == TYPE_DIR ? "Dir" : "File") << "\t\t"
@@ -463,8 +456,6 @@ int FS::ls()
 // <sourcepath> to a new file <destpath>
 int FS::cp(std::string sourcepath, std::string destpath)
 {
-	std::cout << "FS::cp(" << sourcepath << "," << destpath << ")\n";
-
 	if (CheckValidCreate(destpath) == -1)
 	{
 		return -1;
@@ -472,14 +463,14 @@ int FS::cp(std::string sourcepath, std::string destpath)
 
 	std::vector<std::string> sourceFilenameVector = SplitFilepath(sourcepath);
 
-	dir_entry sourceFile{};
+	dir_entry *sourceFile{};
 
-	if (GetFileDirEntry(sourcepath, this->directoryTreeWorkingDirectory, sourceFile) == -1)
+	if (GetFileDirEntry(sourcepath, &sourceFile) == -1)
 	{
 		return -1;
 	}
 
-	std::string sourceString = ReadBlocksFromMemory(sourceFile);
+	std::string sourceString = ReadBlocksFromMemory(*sourceFile);
 
 	std::vector<std::string> blockVector = DivideStringIntoBlocks(sourceString);
 
@@ -492,7 +483,7 @@ int FS::cp(std::string sourcepath, std::string destpath)
 
 	std::string copyFilename = GetFilenameFromFilepath(destpath);
 
-	dir_entry copyDirEntry = MakeDirEntry(copyFilename, sourceFile.size, indexVector.at(0), TYPE_FILE,
+	dir_entry copyDirEntry = MakeDirEntry(copyFilename, sourceFile->size, indexVector.at(0), TYPE_FILE,
 	                                      READ | WRITE | EXECUTE);
 
 	WriteToMemory(this->directoryTreeWorkingDirectory.value, copyDirEntry, indexVector, blockVector);
@@ -504,7 +495,53 @@ int FS::cp(std::string sourcepath, std::string destpath)
 // or moves the file <sourcepath> to the directory <destpath> (if dest is a directory)
 int FS::mv(std::string sourcepath, std::string destpath)
 {
-	std::cout << "FS::mv(" << sourcepath << "," << destpath << ")\n";
+	if (CheckValidCreate(destpath) == -1)
+	{
+		return -1;
+	}
+
+	std::vector<std::string> sourceFilenameVector = SplitFilepath(sourcepath);
+	std::vector<std::string> destFilenameVector = SplitFilepath(destpath);
+
+	dir_entry *sourceFilePtr{};
+
+	if (GetFileDirEntry(sourcepath, &sourceFilePtr) == -1)
+	{
+		return -1;
+	}
+
+	FilepathType sourceFilepathType = sourcepath[0] == '/' ? Absolute : Relative;
+	std::vector<dir_entry> *sourceDirectoryPtr;
+	std::vector<std::string> sourceDirectoryFilenameVector = std::vector<std::string>(sourceFilenameVector.begin(),
+	                                                                                  sourceFilenameVector.end() - 1);
+
+	if (TraverseDirectoryTree(sourceDirectoryFilenameVector, sourceFilepathType, &sourceDirectoryPtr) == -1)
+	{
+		return -1;
+	}
+
+	FilepathType destFilepathType = destpath[0] == '/' ? Absolute : Relative;
+	std::vector<dir_entry> *destDirectoryPtr;
+	std::vector<std::string> destDirectoryFilenameVector = std::vector<std::string>(destFilenameVector.begin(),
+	                                                                                destFilenameVector.end() - 1);
+
+	if (TraverseDirectoryTree(destDirectoryFilenameVector, destFilepathType, &destDirectoryPtr) == -1)
+	{
+		return -1;
+	}
+
+	strcpy(sourceFilePtr->file_name, GetFilenameFromFilepath(destpath).c_str());
+
+	for (int i = 0; i < sourceDirectoryPtr->size(); ++i)
+	{
+		if (strcmp((char *) sourceFilePtr->file_name, (char *) sourceDirectoryPtr->at(i).file_name) == 0)
+		{
+			sourceDirectoryPtr->erase(sourceDirectoryPtr->begin() + i);
+		}
+	}
+
+	destDirectoryPtr->push_back(*sourceFilePtr);
+
 	return 0;
 }
 
@@ -537,30 +574,31 @@ void FS::FreeMemoryBlocks(dir_entry &file)
 // rm <filepath> removes / deletes the file <filepath>
 int FS::rm(std::string filepath)
 {
-	dir_entry file{};
+	dir_entry *file{};
 
-	if (GetFileDirEntry(filepath, this->directoryTreeWorkingDirectory, file) == -1)
+	if (GetFileDirEntry(filepath, &file) == -1)
 	{
 		return -1;
 	}
 
-	FreeMemoryBlocks(file);
+	FreeMemoryBlocks(*file);
 
 	std::vector<std::string> filenameVector = SplitFilepath(filepath);
+	FilepathType filepathType = filepath[0] == '/' ? Absolute : Relative;
 	std::vector<std::string> directoryFilenames(filenameVector.begin(), filenameVector.end() - 1);
-	std::vector<dir_entry> *currentDirectory;
+	std::vector<dir_entry> *currentDirectoryPtr;
 
-	if (TraverseDirectoryTree(ConcatenateFilepath(directoryFilenames), this->directoryTreeWorkingDirectory,
-	                          &currentDirectory) == -1)
+	if (TraverseDirectoryTree(directoryFilenames, filepathType,
+	                          &currentDirectoryPtr) == -1)
 	{
 		return -1;
 	}
 
-	for (int i = 0; i < currentDirectory->size(); ++i)
+	for (int i = 0; i < currentDirectoryPtr->size(); ++i)
 	{
-		if (strcmp((char *) file.file_name, (char *) currentDirectory->at(i).file_name) == 0)
+		if (strcmp((char *) file->file_name, (char *) currentDirectoryPtr->at(i).file_name) == 0)
 		{
-			currentDirectory->erase(currentDirectory->begin() + i);
+			currentDirectoryPtr->erase(currentDirectoryPtr->begin() + i);
 			break;
 		}
 	}

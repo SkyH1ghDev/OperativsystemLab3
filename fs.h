@@ -30,6 +30,7 @@ struct dir_entry
 	uint8_t access_rights; // read (0b100), write (0b01), execute (0b1)
 };
 
+
 class FS
 {
 private:
@@ -47,6 +48,13 @@ private:
 		T value;
 		std::string name;
 		std::vector<TreeNode> children;
+		TreeNode *parent;
+	};
+
+	enum FilepathType
+	{
+		Relative,
+		Absolute
 	};
 
 	std::map<int, std::string> rightsMap =
@@ -76,6 +84,18 @@ private:
 		Custom Created Private Functions
 	*/
 
+	TreeNode<std::vector<dir_entry>> *GetStartingDirectory(FilepathType filepathType)
+	{
+		switch (filepathType)
+		{
+			case Absolute:
+				return &(this->directoryTree);
+
+			case Relative:
+				return &(this->directoryTreeWorkingDirectory);
+		}
+	}
+
 	void FormatBlocks();
 
 	void InitializeRoot();
@@ -84,11 +104,9 @@ private:
 
 	static std::vector<std::string> SplitFilepath(std::string const &filepath);
 
-	static std::string ConcatenateFilepath(std::vector<std::string> const &filenames);
-
 	static std::string GetFilenameFromFilepath(std::string const &filepath);
 
-	int CheckValidCreate(std::string const &filepath) const;
+	int CheckValidCreate(std::string const &filepath);
 
 	static void SaveInputToString(int &length, std::string &inputString);
 
@@ -106,11 +124,12 @@ private:
 
 	std::string ReadBlocksFromMemory(dir_entry &file);
 
-	static int TraverseDirectoryTree(std::string const &filepath, TreeNode<std::vector<dir_entry>> &dirTreeRoot,
-	                                 std::vector<dir_entry> **directory);
+	int TraverseDirectoryTree(std::vector<std::string> const &directoryFilenameVector,
+	                          FilepathType const &filepathType,
+	                          std::vector<dir_entry> **directory);
 
-	static int
-	GetFileDirEntry(std::string const &filepath, TreeNode<std::vector<dir_entry>> &dirTreeRoot, dir_entry &file);
+	int
+	GetFileDirEntry(std::string const &filepath, dir_entry **file);
 
 	// Cat()
 
@@ -172,6 +191,8 @@ public:
 	// chmod <accessrights> <filepath> changes the access rights for the
 	// file <filepath> to <accessrights>.
 	int chmod(std::string accessrights, std::string filepath);
+
+	int filenameVector;
 };
 
 #endif // __FS_H__
