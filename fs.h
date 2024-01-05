@@ -47,7 +47,7 @@ private:
 	{
 		T value;
 		std::string name;
-		std::vector<TreeNode> children;
+		std::vector<TreeNode *> children;
 		TreeNode *parent;
 	};
 
@@ -77,7 +77,7 @@ private:
 	TreeNode<std::vector<dir_entry>> directoryTreeWorkingDirectory;
 
 	// The filepath to the working directory
-	std::string currentFilepath = "";
+	std::string currentFilepath = "/";
 
 
 	/*
@@ -112,7 +112,7 @@ private:
 
 	static std::vector<std::string> DivideStringIntoBlocks(std::string const &inputString);
 
-	int FindFreeMemoryBlocks(int const &amount, std::vector<int> &indexVector);
+	int FindFreeMemoryBlocks(int const &totalRequired, std::vector<int> &indexVector);
 
 	static dir_entry MakeDirEntry(std::string const &filename, int const &size, int const &firstBlock, int const &type,
 	                              int const &accessRights);
@@ -142,6 +142,10 @@ private:
 	void FreeMemoryBlocks(dir_entry &file);
 
 	// Rm()
+
+	std::vector<int> GetBlockIndices(dir_entry &file);
+
+	// Append()
 
 
 public:

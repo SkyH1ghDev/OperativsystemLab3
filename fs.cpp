@@ -165,11 +165,17 @@ std::vector<std::string> FS::DivideStringIntoBlocks(std::string const &inputStri
 //
 // int const &amount - The amount of blocks to be allocated
 // std::vector<int> &indexVector - Vector of the indices of the allocated blocks
-int FS::FindFreeMemoryBlocks(int const &amount, std::vector<int> &indexVector)
+int FS::FindFreeMemoryBlocks(int const &totalRequired, std::vector<int> &indexVector)
 {
 	std::vector<int> tempIndexVector;
 
-	for (int i = 0; i < amount; ++i)
+	int alreadyExisting = indexVector.size();
+
+	// Makes it possible to append with already existing blocks instead of
+	// constantly freeing blocks and looking for new ones
+	int additionalRequired = totalRequired - alreadyExisting;
+
+	for (int i = 0; i < additionalRequired; ++i)
 	{
 		int randomIndex = rand() % 2045 + 2;
 
@@ -201,7 +207,10 @@ int FS::FindFreeMemoryBlocks(int const &amount, std::vector<int> &indexVector)
 		}
 	}
 
-	indexVector = tempIndexVector;
+	for (int blockIndex: tempIndexVector)
+	{
+		indexVector.push_back(blockIndex);
+	}
 
 	return 0;
 }
@@ -292,11 +301,21 @@ int FS::create(std::string const &filepath)
 		return -1;
 	}
 
+	std::vector<std::string> filenameVector = SplitFilepath(filepath);
+	FilepathType filepathType = filepath[0] == '/' ? Absolute : Relative;
+	std::vector<std::string> directoryFilenames(filenameVector.begin(), filenameVector.end() - 1);
+	std::vector<dir_entry> *directoryPtr{};
+
+	if (TraverseDirectoryTree(directoryFilenames, filepathType, &directoryPtr) == -1)
+	{
+		return -1;
+	}
+
 	std::string filename = GetFilenameFromFilepath(filepath);
 
 	dir_entry dirEntry = MakeDirEntry(filename, size, indexVector.at(0), TYPE_FILE, READ | WRITE | EXECUTE);
 
-	WriteToMemory(this->directoryTreeWorkingDirectory.value, dirEntry, indexVector, blockVector);
+	WriteToMemory(*directoryPtr, dirEntry, indexVector, blockVector);
 
 	return 0;
 }
@@ -345,18 +364,18 @@ int FS::TraverseDirectoryTree(std::vector<std::string> const &directoryFilenameV
 
 	TreeNode<std::vector<dir_entry>> *currDirectoryNode = dirTreeRootPtr;
 
-	std::cout << &currDirectoryNode << std::endl;
+	std::cout << &currDirectoryNode << std::endl; // TESTING ZONE
 	std::cout << dirTreeRootPtr << std::endl;
 
 	for (int i = 0; i < directoryFilenameVector.size(); ++i)
 	{
 		bool directoryExists = false;
 
-		for (TreeNode<std::vector<dir_entry>> &node: currDirectoryNode->children)
+		for (TreeNode<std::vector<dir_entry>> *node: currDirectoryNode->children)
 		{
-			if (node.name == directoryFilenameVector.at(i))
+			if (node->name == directoryFilenameVector.at(i))
 			{
-				currDirectoryNode = &node;
+				currDirectoryNode = node;
 				directoryExists = true;
 				break;
 			}
@@ -381,8 +400,7 @@ int FS::TraverseDirectoryTree(std::vector<std::string> const &directoryFilenameV
 // -----
 //
 // std::string const &filepath - The filepath
-// TreeNode<std::vector<dir_entry>> const & dirTreeRoot - The origin tree node from where traversal will begin
-// dir_entry &file - The file at the end of the filepath is assigned to this variable
+// dir_entry **file - The pointer to the file at the end of the filepath is assigned to this variable
 int FS::GetFileDirEntry(std::string const &filepath, dir_entry **file)
 {
 	std::vector<std::string> filenameVector = SplitFilepath(filepath);
@@ -463,14 +481,14 @@ int FS::cp(std::string sourcepath, std::string destpath)
 
 	std::vector<std::string> sourceFilenameVector = SplitFilepath(sourcepath);
 
-	dir_entry *sourceFile{};
+	dir_entry *sourceFilePtr{};
 
-	if (GetFileDirEntry(sourcepath, &sourceFile) == -1)
+	if (GetFileDirEntry(sourcepath, &sourceFilePtr) == -1)
 	{
 		return -1;
 	}
 
-	std::string sourceString = ReadBlocksFromMemory(*sourceFile);
+	std::string sourceString = ReadBlocksFromMemory(*sourceFilePtr);
 
 	std::vector<std::string> blockVector = DivideStringIntoBlocks(sourceString);
 
@@ -483,7 +501,7 @@ int FS::cp(std::string sourcepath, std::string destpath)
 
 	std::string copyFilename = GetFilenameFromFilepath(destpath);
 
-	dir_entry copyDirEntry = MakeDirEntry(copyFilename, sourceFile->size, indexVector.at(0), TYPE_FILE,
+	dir_entry copyDirEntry = MakeDirEntry(copyFilename, sourceFilePtr->size, indexVector.at(0), TYPE_FILE,
 	                                      READ | WRITE | EXECUTE);
 
 	WriteToMemory(this->directoryTreeWorkingDirectory.value, copyDirEntry, indexVector, blockVector);
@@ -606,11 +624,80 @@ int FS::rm(std::string filepath)
 	return 0;
 }
 
+// Returns std::vector<int> of the block indices that a file has reserved
+//
+// -----
+//
+// dir_entry file - The file
+std::vector<int> FS::GetBlockIndices(dir_entry &file)
+{
+	int currentIndex = file.first_blk;
+	std::vector<int> indexVector;
+
+	while (this->fat[currentIndex] != FAT_EOF)
+	{
+		indexVector.push_back(currentIndex);
+	}
+
+	indexVector.push_back(currentIndex);
+
+	return indexVector;
+}
+
 // append <filepath1> <filepath2> appends the contents of file <filepath1> to
 // the end of file <filepath2>. The file <filepath1> is unchanged.
 int FS::append(std::string filepath1, std::string filepath2)
 {
-	std::cout << "FS::append(" << filepath1 << "," << filepath2 << ")\n";
+	dir_entry *sourceFilePtr{};
+
+	if (GetFileDirEntry(filepath1, &sourceFilePtr) == -1)
+	{
+		return -1;
+	}
+
+	std::string sourceString = ReadBlocksFromMemory(*sourceFilePtr);
+
+	dir_entry *destFilePtr{};
+
+	if (GetFileDirEntry(filepath2, &destFilePtr) == -1)
+	{
+		return -1;
+	}
+
+	std::string destString = ReadBlocksFromMemory(*destFilePtr);
+
+	destString.append(sourceString);
+
+	destFilePtr->size += sourceFilePtr->size;
+
+	std::vector<std::string> filenameVector = SplitFilepath(filepath2);
+	std::vector<std::string> directoryVector(filenameVector.begin(), filenameVector.end() - 1);
+	FilepathType destFilepathType = filepath2[0] == '/' ? Absolute : Relative;
+	std::vector<dir_entry> *directoryPtr;
+
+	if (TraverseDirectoryTree(directoryVector, destFilepathType, &directoryPtr) == -1)
+	{
+		return -1;
+	}
+
+	std::cout << "Source: " << sourceFilePtr->file_name << std::endl;
+	std::cout << "Destination: " << destFilePtr->file_name << std::endl;
+
+	// Must temporarily erase the dir_entry as it would cause a duplicates otherwise
+	for (int i = 0; i < directoryPtr->size(); ++i)
+	{
+		if (strcmp((char *) directoryPtr->at(i).file_name, (char *) destFilePtr->file_name) == 0)
+		{
+			directoryPtr->erase(directoryPtr->begin() + i);
+		}
+	}
+
+
+	std::vector<int> indexVector = GetBlockIndices(*destFilePtr);
+	std::vector<std::string> blockVector = DivideStringIntoBlocks(destString);
+
+	WriteToMemory(*directoryPtr, *destFilePtr, indexVector, blockVector);
+
 	return 0;
 }
 
