@@ -46,7 +46,7 @@ private:
 	template<class T>
 	struct TreeNode
 	{
-		T *value;
+		T value;
 		std::string name;
 		int fatIndex;
 		std::vector<TreeNode *> children;
@@ -91,17 +91,16 @@ private:
 	// -----
 	//
 	// FilepathType filepathType - The type of the filepath (Relative / Absolute)
-	void GetStartingDirectory(FilepathType filepathType, TreeNode<std::vector<dir_entry>> **directoryNode)
+	TreeNode<std::vector<dir_entry>> *
+	GetStartingDirectory(FilepathType filepathType)
 	{
 		switch (filepathType)
 		{
 			case Absolute:
-				*directoryNode = &(this->directoryTree);
+				return &this->directoryTree;
 
 			case Relative:
-				std::cout << "In GetStartingDirectory: " << &this->directoryTreeWorkingDirectory
-				          << std::endl;
-				*directoryNode = &(this->directoryTreeWorkingDirectory);
+				return &this->directoryTreeWorkingDirectory;
 		}
 	}
 
@@ -115,14 +114,11 @@ private:
 	int TraverseDirectoryTree(std::vector<std::string> const &directoryFilenameVector, FilepathType const &filepathType,
 	                          TreeNode<std::vector<dir_entry>> **directoryNode)
 	{
-		TreeNode<std::vector<dir_entry>> *dirTreeRootPtr{};
-		GetStartingDirectory(filepathType, &dirTreeRootPtr);
+		TreeNode<std::vector<dir_entry>> *dirTreeRootPtr = GetStartingDirectory(filepathType);
 
 		if (directoryFilenameVector.empty())
 		{
 			*directoryNode = dirTreeRootPtr;
-
-			std::cout << "In TraverseDirectoryTree: " << dirTreeRootPtr->fatIndex << std::endl;
 			return 0;
 		}
 
@@ -167,8 +163,8 @@ private:
 	{
 		TreeNode<std::vector<dir_entry>> newNode{};
 
-		std::shared_ptr<std::vector<dir_entry>> newDirectory(new std::vector<dir_entry>);
-		newNode.value = newDirectory.get();
+		std::vector<dir_entry> newDirectory;
+		newNode.value = newDirectory;
 		newNode.name = name;
 		newNode.parent = parentNode;
 		newNode.fatIndex = fatIndex;
