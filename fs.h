@@ -5,6 +5,7 @@
 #include <vector>
 #include <array>
 #include <map>
+#include <memory>
 
 #ifndef __FS_H__
 #define __FS_H__
@@ -36,7 +37,7 @@ class FS
 private:
 	Disk disk;
 	// size of a FAT entry is 2 bytes
-	int16_t *fat = new int16_t[BLOCK_SIZE / 2];
+	int16_t *fat;
 
 	/*
 		Custom Created Private Variables
@@ -45,8 +46,9 @@ private:
 	template<class T>
 	struct TreeNode
 	{
-		T value;
+		T *value;
 		std::string name;
+		int fatIndex;
 		std::vector<TreeNode *> children;
 		TreeNode *parent;
 	};
@@ -84,21 +86,108 @@ private:
 		Custom Created Private Functions
 	*/
 
-	TreeNode<std::vector<dir_entry>> *GetStartingDirectory(FilepathType filepathType)
+	// Returns the correct starting node of the directory tree based on whether the filepath is relative or absolute'
+	//
+	// -----
+	//
+	// FilepathType filepathType - The type of the filepath (Relative / Absolute)
+	void GetStartingDirectory(FilepathType filepathType, TreeNode<std::vector<dir_entry>> **directoryNode)
 	{
 		switch (filepathType)
 		{
 			case Absolute:
-				return &(this->directoryTree);
+				*directoryNode = &(this->directoryTree);
 
 			case Relative:
-				return &(this->directoryTreeWorkingDirectory);
+				std::cout << "In GetStartingDirectory: " << &this->directoryTreeWorkingDirectory
+				          << std::endl;
+				*directoryNode = &(this->directoryTreeWorkingDirectory);
 		}
 	}
 
+	// Moves down the directoryTree trying to follow the filepath. Fails if filepath is invalid in some way
+	//
+	// -----
+	//
+	// std::vector<std::string const &directoryFilenameVector - The vector of filenames of directories. Exclude the filename of the non-directoryNode file (if applicable)
+	// TreeNode<std::vector<dir_entry>> const &dirTreeRoot - The tree node from where traversal will begin
+	// std::vector<dir_entry>** directoryNode - The address of the directoryNode at the end of the filepath is assigned to this variable
+	int TraverseDirectoryTree(std::vector<std::string> const &directoryFilenameVector, FilepathType const &filepathType,
+	                          TreeNode<std::vector<dir_entry>> **directoryNode)
+	{
+		TreeNode<std::vector<dir_entry>> *dirTreeRootPtr{};
+		GetStartingDirectory(filepathType, &dirTreeRootPtr);
+
+		if (directoryFilenameVector.empty())
+		{
+			*directoryNode = dirTreeRootPtr;
+
+			std::cout << "In TraverseDirectoryTree: " << dirTreeRootPtr->fatIndex << std::endl;
+			return 0;
+		}
+
+		TreeNode<std::vector<dir_entry>> *currDirectoryNode = dirTreeRootPtr;
+
+		for (int i = 0; i < directoryFilenameVector.size(); ++i)
+		{
+			bool directoryExists = false;
+
+			for (TreeNode<std::vector<dir_entry>> *node: currDirectoryNode->children)
+			{
+				if (node->name == directoryFilenameVector.at(i))
+				{
+					currDirectoryNode = node;
+					directoryExists = true;
+					break;
+				}
+			}
+
+			if (!directoryExists)
+			{
+				std::cout << "Filepath is invalid" << std::endl;
+				return -1;
+			}
+		}
+
+		*directoryNode = currDirectoryNode;
+
+		return 0;
+	}
+
+	// Creates a directory node, appends it to the directory tree and returns it.
+	//
+	// -----
+	//
+	// std::vector<dir_entry> const &value - the directory
+	// std::string const &name - the name of the directory
+	// TreeNode<std::vector<dir_entry>> *parentNode - pointer to the parent node
+	static TreeNode<std::vector<dir_entry>>
+	MakeDirectoryTreeNode(std::string const &name, int const &fatIndex,
+	                      TreeNode<std::vector<dir_entry>> *parentNode)
+	{
+		TreeNode<std::vector<dir_entry>> newNode{};
+
+		std::shared_ptr<std::vector<dir_entry>> newDirectory(new std::vector<dir_entry>);
+		newNode.value = newDirectory.get();
+		newNode.name = name;
+		newNode.parent = parentNode;
+		newNode.fatIndex = fatIndex;
+		parentNode->children.push_back(&newNode);
+
+		return newNode;
+	}
+
+	void ReadFatFromDisk();
+
+	// FS()
+
+	void WriteFatToMemory();
+
+	// ~FS()
+
 	void FormatBlocks();
 
-	void InitializeRoot();
+	void FormatRoot();
 
 	// Format()
 
@@ -117,19 +206,17 @@ private:
 	static dir_entry MakeDirEntry(std::string const &filename, int const &size, int const &firstBlock, int const &type,
 	                              int const &accessRights);
 
-	int WriteToMemory(std::vector<dir_entry> &directory, dir_entry const &dirEntry, std::vector<int> const &indexVector,
+	int
+	WriteFileToMemory(std::vector<dir_entry> &directory, int const &directoryFatIndex, dir_entry const &dirEntry,
+	                  std::vector<int> const &indexVector,
 	                  std::vector<std::string> const &blockVector);
 
 	// Create()
 
-	std::string ReadBlocksFromMemory(dir_entry &file);
-
-	int TraverseDirectoryTree(std::vector<std::string> const &directoryFilenameVector,
-	                          FilepathType const &filepathType,
-	                          std::vector<dir_entry> **directory);
+	std::string ReadFileBlocksFromMemory(dir_entry &file);
 
 	int
-	GetFileDirEntry(std::string const &filepath, dir_entry **file);
+	GetDirEntry(std::string const &filepath, dir_entry **file);
 
 	// Cat()
 
@@ -147,7 +234,10 @@ private:
 
 	// Append()
 
+	int WriteDirectoryToMemory(std::vector<dir_entry> &destDirectory, dir_entry const &dirEntry,
+	                           std::vector<dir_entry> &directory);
 
+	// Mkdir()
 public:
 	FS();
 
