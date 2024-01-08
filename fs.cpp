@@ -13,6 +13,11 @@ void FS::ReadFatFromDisk()
 	disk.read(FAT_BLOCK, (uint8_t *) this->fat);
 }
 
+void FS::ReadDirectoriesFromFat()
+{
+
+}
+
 FS::FS()
 {
 	std::cout << "FS::FS()... Creating file system\n";
@@ -56,7 +61,10 @@ void FS::FormatRoot()
 	this->directoryTree.parent = nullptr;
 	this->directoryTree.fatIndex = ROOT_BLOCK;
 
-	this->directoryTreeWorkingDirectory = this->directoryTree;
+	this->directoryTreeWorkingDirectoryPtr = &this->directoryTree;
+
+	std::cout << "directoryTree: " << &this->directoryTree << std::endl;
+	std::cout << "directoryTreeWD: " << this->directoryTreeWorkingDirectoryPtr << std::endl;
 }
 
 // formats the disk, i.e., creates an empty file system
@@ -428,7 +436,7 @@ int FS::cat(std::string const &filepath)
 int FS::ls()
 {
 	std::cout << "Filename\t\t\tType\t\tAccessrights\t\tSize (Bytes) \n";
-	for (dir_entry &file: directoryTreeWorkingDirectory.value)
+	for (dir_entry &file: directoryTreeWorkingDirectoryPtr->value)
 	{
 		std::cout << file.file_name << "\t\t\t\t"
 		          << (file.type == TYPE_DIR ? "Dir" : "File") << "\t\t"

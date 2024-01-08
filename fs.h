@@ -76,7 +76,7 @@ private:
 	TreeNode<std::vector<dir_entry>> directoryTree;
 
 	// Node of the current working directory
-	TreeNode<std::vector<dir_entry>> directoryTreeWorkingDirectory;
+	TreeNode<std::vector<dir_entry>> *directoryTreeWorkingDirectoryPtr;
 
 	// The filepath to the working directory
 	std::string currentFilepath = "/";
@@ -100,7 +100,7 @@ private:
 				return &this->directoryTree;
 
 			case Relative:
-				return &this->directoryTreeWorkingDirectory;
+				return this->directoryTreeWorkingDirectoryPtr;
 		}
 	}
 
@@ -172,6 +172,8 @@ private:
 
 		return newNode;
 	}
+
+	void ReadDirectoriesFromFat();
 
 	void ReadFatFromDisk();
 
