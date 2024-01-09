@@ -54,15 +54,12 @@ void FS::FormatBlocks()
 // Initializes the root directory
 void FS::FormatRoot()
 {
-	std::vector<dir_entry> root{};
-	root.reserve(64);
-
-	this->directoryTree.value = root;
+	this->directoryTree.value = std::make_shared<std::vector<dir_entry>>();
+	this->directoryTree.value->reserve(64);
 	this->directoryTree.name = "/";
 	this->directoryTree.parent = nullptr;
 	this->directoryTree.fatIndex = ROOT_BLOCK;
-	this->directoryTree.children = std::vector<TreeNode<std::vector<dir_entry>> *>{};
-
+	this->directoryTree.children = std::make_shared<std::vector<TreeNode<std::vector<dir_entry>> *>>();
 	this->directoryTreeWorkingDirectoryPtr = &this->directoryTree;
 }
 
@@ -128,7 +125,7 @@ int FS::CheckValidCreate(std::string const &filepath)
 	FilepathType filepathType = filepath[0] == '/' ? Absolute : Relative;
 	TreeNode<std::vector<dir_entry>> *startingNode = GetStartingDirectory(filepathType);
 
-	for (auto file: startingNode->value)
+	for (auto file: *startingNode->value)
 	{
 		if (file.file_name == filename)
 		{
@@ -342,7 +339,7 @@ int FS::create(std::string const &filepath)
 
 	dir_entry dirEntry = MakeDirEntry(filename, size, indexVector.at(0), TYPE_FILE, READ | WRITE | EXECUTE);
 
-	WriteFileToMemory(directoryNodePtr->value, directoryNodePtr->fatIndex, dirEntry, indexVector, blockVector);
+	WriteFileToMemory(*directoryNodePtr->value, directoryNodePtr->fatIndex, dirEntry, indexVector, blockVector);
 
 	return 0;
 }
@@ -396,13 +393,13 @@ int FS::GetDirEntry(std::string const &filepath, dir_entry **file)
 		return -1;
 	}
 
-	if (workingDirectoryNodePtr->value.empty())
+	if (workingDirectoryNodePtr->value->empty())
 	{
 		std::cout << "The file does not exist" << std::endl;
 		return -1;
 	}
 
-	for (dir_entry &tempFile: workingDirectoryNodePtr->value)
+	for (dir_entry &tempFile: *workingDirectoryNodePtr->value)
 	{
 		if (tempFile.file_name == filenameVector.back())
 		{
@@ -436,7 +433,7 @@ int FS::ls()
 {
 	std::cout << "Filename\t\t\tType\t\tAccessrights\t\tSize (Bytes) \n";
 
-	for (dir_entry &file: this->directoryTreeWorkingDirectoryPtr->value)
+	for (dir_entry &file: *(this->directoryTreeWorkingDirectoryPtr->value))
 	{
 		std::cout << file.file_name << "\t\t\t\t"
 		          << (file.type == TYPE_DIR ? "Dir" : "File") << "\t\t"
@@ -491,7 +488,7 @@ int FS::cp(std::string sourcepath, std::string destpath)
 		return -1;
 	}
 
-	WriteFileToMemory(directoryNodePtr->value, directoryNodePtr->fatIndex,
+	WriteFileToMemory(*directoryNodePtr->value, directoryNodePtr->fatIndex,
 	                  copyDirEntry,
 	                  indexVector, blockVector);
 
@@ -539,15 +536,15 @@ int FS::mv(std::string sourcepath, std::string destpath)
 
 	strcpy(sourceFilePtr->file_name, GetFilenameFromFilepath(destpath).c_str());
 
-	for (int i = 0; i < sourceDirectoryNodePtr->value.size(); ++i)
+	for (int i = 0; i < sourceDirectoryNodePtr->value->size(); ++i)
 	{
-		if (strcmp((char *) sourceFilePtr->file_name, (char *) sourceDirectoryNodePtr->value.at(i).file_name) == 0)
+		if (strcmp((char *) sourceFilePtr->file_name, (char *) sourceDirectoryNodePtr->value->at(i).file_name) == 0)
 		{
-			sourceDirectoryNodePtr->value.erase(sourceDirectoryNodePtr->value.begin() + i);
+			sourceDirectoryNodePtr->value->erase(sourceDirectoryNodePtr->value->begin() + i);
 		}
 	}
 
-	destDirectoryNodePtr->value.push_back(*sourceFilePtr);
+	destDirectoryNodePtr->value->push_back(*sourceFilePtr);
 
 	return 0;
 }
@@ -601,11 +598,11 @@ int FS::rm(std::string filepath)
 		return -1;
 	}
 
-	for (int i = 0; i < currentDirectoryNodePtr->value.size(); ++i)
+	for (int i = 0; i < currentDirectoryNodePtr->value->size(); ++i)
 	{
-		if (strcmp((char *) file->file_name, (char *) currentDirectoryNodePtr->value.at(i).file_name) == 0)
+		if (strcmp((char *) file->file_name, (char *) currentDirectoryNodePtr->value->at(i).file_name) == 0)
 		{
-			currentDirectoryNodePtr->value.erase(currentDirectoryNodePtr->value.begin() + i);
+			currentDirectoryNodePtr->value->erase(currentDirectoryNodePtr->value->begin() + i);
 			break;
 		}
 	}
@@ -672,11 +669,11 @@ int FS::append(std::string filepath1, std::string filepath2)
 	dir_entry destFileCopy = *destFilePtr;
 
 	// Must temporarily erase the dir_entry as it would cause a duplicates otherwise
-	for (int i = 0; i < directoryNodePtr->value.size(); ++i)
+	for (int i = 0; i < directoryNodePtr->value->size(); ++i)
 	{
-		if (strcmp((char *) directoryNodePtr->value.at(i).file_name, (char *) destFilePtr->file_name) == 0)
+		if (strcmp((char *) directoryNodePtr->value->at(i).file_name, (char *) destFilePtr->file_name) == 0)
 		{
-			directoryNodePtr->value.erase(directoryNodePtr->value.begin() + i);
+			directoryNodePtr->value->erase(directoryNodePtr->value->begin() + i);
 			break;
 		}
 	}
@@ -684,7 +681,7 @@ int FS::append(std::string filepath1, std::string filepath2)
 	std::vector<int> indexVector = GetBlockIndices(destFileCopy);
 	std::vector<std::string> blockVector = DivideStringIntoBlocks(totalString);
 
-	if (WriteFileToMemory(directoryNodePtr->value, directoryNodePtr->fatIndex, destFileCopy, indexVector,
+	if (WriteFileToMemory(*directoryNodePtr->value, directoryNodePtr->fatIndex, destFileCopy, indexVector,
 	                      blockVector) == -1)
 	{
 		return -1;
@@ -715,6 +712,7 @@ int FS::WriteDirectoryToMemory(std::vector<dir_entry> &destDirectory, dir_entry 
 int FS::mkdir(std::string dirpath)
 {
 	std::cout << "FS::mkdir(" << dirpath << ")\n";
+	std::cout << "here";
 
 	if (CheckValidCreate(dirpath) == -1)
 	{
@@ -745,7 +743,7 @@ int FS::mkdir(std::string dirpath)
 
 	std::cout << "outside: " << &newDirectoryNode.value << std::endl;
 
-	if (WriteDirectoryToMemory(parentDirectoryNodePtr->value, directoryDirEntry, newDirectoryNode.value) == -1)
+	if (WriteDirectoryToMemory(*parentDirectoryNodePtr->value, directoryDirEntry, *newDirectoryNode.value) == -1)
 	{
 		return -1;
 	}

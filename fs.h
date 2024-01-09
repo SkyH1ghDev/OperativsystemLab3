@@ -1,6 +1,7 @@
 #include <iostream>
 #include <cstdint>
 #include "disk.h"
+#include <memory>
 #include <string>
 #include <vector>
 #include <array>
@@ -46,10 +47,10 @@ private:
 	template<class T>
 	struct TreeNode
 	{
-		T value;
+		std::shared_ptr<T> value;
 		std::string name;
 		int fatIndex;
-		std::vector<TreeNode *> children;
+		std::shared_ptr<std::vector<TreeNode *>> children;
 		TreeNode *parent;
 	};
 
@@ -128,7 +129,7 @@ private:
 		{
 			bool directoryExists = false;
 
-			for (TreeNode<std::vector<dir_entry>> *node: currDirectoryNode->children)
+			for (TreeNode<std::vector<dir_entry>> *node: *currDirectoryNode->children)
 			{
 				if (node->name == directoryFilenameVector.at(i))
 				{
@@ -162,14 +163,13 @@ private:
 	                      TreeNode<std::vector<dir_entry>> *parentNode)
 	{
 		std::shared_ptr<TreeNode<std::vector<dir_entry>>> newNodePtr(new TreeNode<std::vector<dir_entry>>);
-
-
-		newNodePtr->value = std::vector<dir_entry>{};
+		newNodePtr->value = std::make_shared<std::vector<dir_entry>>();
+		newNodePtr->value->reserve(64);
 		newNodePtr->name = name;
 		newNodePtr->parent = parentNode;
 		newNodePtr->fatIndex = fatIndex;
-		newNodePtr->children = std::vector<TreeNode<std::vector<dir_entry>> *>{};
-		parentNode->children.push_back(newNodePtr.get());
+		newNodePtr->children = std::make_shared<std::vector<TreeNode<std::vector<dir_entry>> *>>();
+		parentNode->children->push_back(newNodePtr.get());
 
 		return *newNodePtr;
 	}
