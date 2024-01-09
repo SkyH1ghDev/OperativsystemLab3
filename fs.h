@@ -157,20 +157,21 @@ private:
 	// std::vector<dir_entry> const &value - the directory
 	// std::string const &name - the name of the directory
 	// TreeNode<std::vector<dir_entry>> *parentNode - pointer to the parent node
-	static TreeNode<std::vector<dir_entry>>
+	static TreeNode<std::vector<dir_entry>> &
 	MakeDirectoryTreeNode(std::string const &name, int const &fatIndex,
 	                      TreeNode<std::vector<dir_entry>> *parentNode)
 	{
-		TreeNode<std::vector<dir_entry>> newNode{};
+		std::shared_ptr<TreeNode<std::vector<dir_entry>>> newNodePtr(new TreeNode<std::vector<dir_entry>>);
 
-		std::vector<dir_entry> newDirectory;
-		newNode.value = newDirectory;
-		newNode.name = name;
-		newNode.parent = parentNode;
-		newNode.fatIndex = fatIndex;
-		parentNode->children.push_back(&newNode);
 
-		return newNode;
+		newNodePtr->value = std::vector<dir_entry>{};
+		newNodePtr->name = name;
+		newNodePtr->parent = parentNode;
+		newNodePtr->fatIndex = fatIndex;
+		newNodePtr->children = std::vector<TreeNode<std::vector<dir_entry>> *>{};
+		parentNode->children.push_back(newNodePtr.get());
+
+		return *newNodePtr;
 	}
 
 	void ReadDirectoriesFromFat();

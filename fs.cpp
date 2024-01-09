@@ -22,6 +22,7 @@ FS::FS()
 {
 	std::cout << "FS::FS()... Creating file system\n";
 	ReadFatFromDisk();
+	ReadDirectoriesFromFat();
 
 	srand(time(nullptr));
 }
@@ -60,11 +61,9 @@ void FS::FormatRoot()
 	this->directoryTree.name = "/";
 	this->directoryTree.parent = nullptr;
 	this->directoryTree.fatIndex = ROOT_BLOCK;
+	this->directoryTree.children = std::vector<TreeNode<std::vector<dir_entry>> *>{};
 
 	this->directoryTreeWorkingDirectoryPtr = &this->directoryTree;
-
-	std::cout << "directoryTree: " << &this->directoryTree << std::endl;
-	std::cout << "directoryTreeWD: " << this->directoryTreeWorkingDirectoryPtr << std::endl;
 }
 
 // formats the disk, i.e., creates an empty file system
@@ -436,7 +435,8 @@ int FS::cat(std::string const &filepath)
 int FS::ls()
 {
 	std::cout << "Filename\t\t\tType\t\tAccessrights\t\tSize (Bytes) \n";
-	for (dir_entry &file: directoryTreeWorkingDirectoryPtr->value)
+
+	for (dir_entry &file: this->directoryTreeWorkingDirectoryPtr->value)
 	{
 		std::cout << file.file_name << "\t\t\t\t"
 		          << (file.type == TYPE_DIR ? "Dir" : "File") << "\t\t"
@@ -743,6 +743,7 @@ int FS::mkdir(std::string dirpath)
 	                                                                          directoryDirEntry.first_blk,
 	                                                                          parentDirectoryNodePtr);
 
+	std::cout << "outside: " << &newDirectoryNode.value << std::endl;
 
 	if (WriteDirectoryToMemory(parentDirectoryNodePtr->value, directoryDirEntry, newDirectoryNode.value) == -1)
 	{
@@ -757,6 +758,14 @@ int FS::cd(std::string dirpath)
 {
 	std::cout << "FS::cd(" << dirpath << ")\n";
 
+	std::vector<std::string> directoryFilenameVector = SplitFilepath(dirpath);
+	FilepathType filepathType = dirpath[0] == '/' ? Absolute : Relative;
+	TreeNode<std::vector<dir_entry>> *newCurrentDirectoryPtr{};
+	if (TraverseDirectoryTree(directoryFilenameVector, filepathType, &newCurrentDirectoryPtr) == -1)
+	{
+		return -1;
+	}
+	this->directoryTreeWorkingDirectoryPtr = newCurrentDirectoryPtr;
 
 	return 0;
 }
