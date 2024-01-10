@@ -1,7 +1,6 @@
 #include <iostream>
 #include <cstdint>
 #include "disk.h"
-#include <memory>
 #include <string>
 #include <vector>
 #include <array>
@@ -47,10 +46,10 @@ private:
 	template<class T>
 	struct TreeNode
 	{
-		std::shared_ptr<T> value;
+		T value;
 		std::string name;
 		int fatIndex;
-		std::shared_ptr<std::vector<TreeNode *>> children;
+		std::vector<std::shared_ptr<TreeNode>> children;
 		TreeNode *parent;
 	};
 
@@ -129,11 +128,11 @@ private:
 		{
 			bool directoryExists = false;
 
-			for (TreeNode<std::vector<dir_entry>> *node: *currDirectoryNode->children)
+			for (std::shared_ptr<TreeNode<std::vector<dir_entry>>> const &node: currDirectoryNode->children)
 			{
 				if (node->name == directoryFilenameVector.at(i))
 				{
-					currDirectoryNode = node;
+					currDirectoryNode = node.get();
 					directoryExists = true;
 					break;
 				}
@@ -146,8 +145,6 @@ private:
 			}
 		}
 
-		*directoryNode = currDirectoryNode;
-
 		return 0;
 	}
 
@@ -158,20 +155,19 @@ private:
 	// std::vector<dir_entry> const &value - the directory
 	// std::string const &name - the name of the directory
 	// TreeNode<std::vector<dir_entry>> *parentNode - pointer to the parent node
-	static TreeNode<std::vector<dir_entry>> &
+	static TreeNode<std::vector<dir_entry>>
 	MakeDirectoryTreeNode(std::string const &name, int const &fatIndex,
 	                      TreeNode<std::vector<dir_entry>> *parentNode)
 	{
-		std::shared_ptr<TreeNode<std::vector<dir_entry>>> newNodePtr(new TreeNode<std::vector<dir_entry>>);
-		newNodePtr->value = std::make_shared<std::vector<dir_entry>>();
-		newNodePtr->value->reserve(64);
-		newNodePtr->name = name;
-		newNodePtr->parent = parentNode;
-		newNodePtr->fatIndex = fatIndex;
-		newNodePtr->children = std::make_shared<std::vector<TreeNode<std::vector<dir_entry>> *>>();
-		parentNode->children->push_back(newNodePtr.get());
+		TreeNode<std::vector<dir_entry>> newNodePtr{};
 
-		return *newNodePtr;
+		newNodePtr.value = std::vector<dir_entry>{};
+		newNodePtr.name = name;
+		newNodePtr.parent = parentNode;
+		newNodePtr.fatIndex = fatIndex;
+		newNodePtr.children = std::vector<std::shared_ptr<TreeNode<std::vector<dir_entry>>>>{};
+
+		return newNodePtr;
 	}
 
 	void ReadDirectoriesFromFat();
@@ -212,7 +208,7 @@ private:
 
 	// Create()
 
-	std::string ReadFileBlocksFromMemory(dir_entry &file);
+	std::string ReadFileBlocksFromMemory(dir_entry const &file);
 
 	int
 	GetDirEntry(std::string const &filepath, dir_entry **file);
@@ -233,7 +229,7 @@ private:
 
 	// Append()
 
-	int WriteDirectoryToMemory(std::vector<dir_entry> &destDirectory, dir_entry const &dirEntry,
+	int WriteDirectoryToMemory(std::vector<dir_entry> &parentDirectory, dir_entry const &dirEntry,
 	                           std::vector<dir_entry> &directory);
 
 	// Mkdir()
