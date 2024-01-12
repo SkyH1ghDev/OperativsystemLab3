@@ -1,5 +1,3 @@
-#include <iostream>
-#include <vector>
 #include <sstream>
 #include "fs.h"
 #include <random>
@@ -122,6 +120,12 @@ int FS::CheckValidCreate(std::string const &filepath)
 	if (filename.length() >= 56)
 	{
 		std::cout << "Filename is too long" << std::endl;
+		return -1;
+	}
+
+	if (filename[0] == '.')
+	{
+		std::cout << "Filename can't start with '.'" << std::endl;
 		return -1;
 	}
 
@@ -427,6 +431,12 @@ int FS::cat(std::string const &filepath)
 		return -1;
 	}
 
+	if (filePtr->type == TYPE_DIR)
+	{
+		std::cout << "Can't read file of type directory" << std::endl;
+		return -1;
+	}
+
 	std::cout << ReadFileBlocksFromMemory(*filePtr) << std::endl;
 
 	return 0;
@@ -442,7 +452,7 @@ int FS::ls()
 		std::cout << file.file_name << "\t\t\t\t"
 		          << (file.type == TYPE_DIR ? "Dir" : "File") << "\t\t"
 		          << rightsMap[file.access_rights] << "\t\t\t"
-		          << file.size << "\t\t\t"
+		          << (file.type == TYPE_DIR ? "-" : std::to_string(file.size)) << "\t\t\t"
 		          << file.first_blk << std::endl;
 	}
 
@@ -496,6 +506,7 @@ int FS::cp(std::string sourcepath, std::string destpath)
 	WriteFileToMemory(directoryNodePtr->value, directoryNodePtr->fatIndex,
 	                  copyDirEntry,
 	                  indexVector, blockVector);
+
 
 	return 0;
 }
@@ -726,8 +737,6 @@ int FS::WriteDirectoryToMemory(std::vector<dir_entry> &parentDirectory, dir_entr
 // in the current directory
 int FS::mkdir(std::string dirpath)
 {
-	std::cout << "FS::mkdir(" << dirpath << ")\n";
-
 	if (CheckValidCreate(dirpath) == -1)
 	{
 		return -1;
@@ -765,11 +774,60 @@ int FS::mkdir(std::string dirpath)
 	return 0;
 }
 
+std::string FS::ConcatenateFilepath(std::stack<std::string> &filenameStack)
+{
+	std::string filepath{};
+
+	if (filenameStack.empty())
+	{
+		return "/";
+	}
+
+	for (int i = 0;
+	     i <= filenameStack.size(); ++i) // needs to be i <= for some reason. Otherwise it doesn't prepend last element
+	{
+		std::cout << filenameStack.top() << std::endl;
+		filepath = "/" + filenameStack.top() + filepath; // Needs to be prepended
+		filenameStack.pop();
+	}
+
+	return filepath;
+}
+
+std::string FS::GetUpdatedCurrentDirectoryPath(std::vector<std::string> const &directoryFilenameVector,
+                                               FilepathType const &filepathType)
+{
+	std::stack<std::string> directoryFilenameStack;
+
+	if (filepathType == Relative)
+	{
+		std::vector<std::string> currentFilepathFilenameVector = SplitFilepath(this->currentFilepath);
+
+		for (std::string const &string: currentFilepathFilenameVector)
+		{
+			std::cout << string << std::endl;
+			directoryFilenameStack.push(string);
+		}
+	}
+
+	for (std::string const &string: directoryFilenameVector)
+	{
+		if (string == "..")
+		{
+			directoryFilenameStack.pop();
+		}
+		else
+		{
+			directoryFilenameStack.push(string);
+		}
+	}
+
+	return ConcatenateFilepath(directoryFilenameStack);
+}
+
 // cd <dirpath> changes the current (working) directory to the directory named <dirpath>
 int FS::cd(std::string dirpath)
 {
-	std::cout << "FS::cd(" << dirpath << ")\n";
-
 	std::vector<std::string> directoryFilenameVector = SplitFilepath(dirpath);
 	FilepathType filepathType = dirpath[0] == '/' ? Absolute : Relative;
 	TreeNode<std::vector<dir_entry>> *newCurrentDirectoryPtr{};
@@ -779,6 +837,8 @@ int FS::cd(std::string dirpath)
 	}
 	this->directoryTreeWorkingDirectoryPtr = newCurrentDirectoryPtr;
 
+	this->currentFilepath = GetUpdatedCurrentDirectoryPath(directoryFilenameVector, filepathType);
+
 	return 0;
 }
 
@@ -786,7 +846,8 @@ int FS::cd(std::string dirpath)
 // directory, including the currect directory name
 int FS::pwd()
 {
-	std::cout << "FS::pwd()\n";
+	std::cout << this->currentFilepath << std::endl;
+
 	return 0;
 }
 

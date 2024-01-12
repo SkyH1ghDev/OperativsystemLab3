@@ -6,6 +6,7 @@
 #include <array>
 #include <map>
 #include <memory>
+#include <stack>
 
 #ifndef __FS_H__
 #define __FS_H__
@@ -101,6 +102,8 @@ private:
 
 			case Relative:
 				return this->directoryTreeWorkingDirectoryPtr;
+			default:
+				throw std::exception();
 		}
 	}
 
@@ -128,8 +131,17 @@ private:
 		{
 			bool directoryExists = false;
 
+			if (directoryFilenameVector.at(i) == ".." && currDirectoryNode->parent != nullptr)
+			{
+				currDirectoryNode = currDirectoryNode->parent;
+				directoryExists = true;
+				break;
+			}
+
 			for (std::shared_ptr<TreeNode<std::vector<dir_entry>>> const &node: currDirectoryNode->children)
 			{
+
+
 				if (node->name == directoryFilenameVector.at(i))
 				{
 					currDirectoryNode = node.get();
@@ -145,6 +157,7 @@ private:
 			}
 		}
 
+		*directoryNode = currDirectoryNode;
 		return 0;
 	}
 
@@ -233,6 +246,18 @@ private:
 	                           std::vector<dir_entry> &directory);
 
 	// Mkdir()
+
+	std::string ConcatenateFilepath(std::stack<std::string> &filenameStack);
+
+	std::string GetUpdatedCurrentDirectoryPath(std::vector<std::string> const &directoryFilenameVector,
+	                                           FilepathType const &filepathType);
+
+	// Cd()
+
+	// Pwd()
+
+	// Chmod()
+
 public:
 	FS();
 
