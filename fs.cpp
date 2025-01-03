@@ -494,7 +494,7 @@ int FS::cp(std::string sourcepath, std::string destpath)
 	                                      READ | WRITE | EXECUTE);
 
 	std::vector<std::string> destFilenameVector = SplitFilepath(destpath);
-	std::vector<std::string> destDirectoryFilenameVector(destFilenameVector.begin(), destFilenameVector.end() + 1);
+	std::vector<std::string> destDirectoryFilenameVector(destFilenameVector.begin(), destFilenameVector.end() - 1);
 	FilepathType filepathType = destpath[0] == '/' ? Absolute : Relative;
 	TreeNode<std::vector<dir_entry>> *directoryNodePtr;
 

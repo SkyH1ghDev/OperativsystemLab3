@@ -1,3 +1,9 @@
-/home/skyh1gh/Desktop/Skolprojekt/Operativsystem/Lab 3/cmake-build-debug/CMakeFiles/Lab_3.dir
-/home/skyh1gh/Desktop/Skolprojekt/Operativsystem/Lab 3/cmake-build-debug/CMakeFiles/edit_cache.dir
-/home/skyh1gh/Desktop/Skolprojekt/Operativsystem/Lab 3/cmake-build-debug/CMakeFiles/rebuild_cache.dir
+/home/skyh1ghdev/Programming/Projects/OperativsystemLab3/cmake-build-debug/CMakeFiles/filesystem.dir
+/home/skyh1ghdev/Programming/Projects/OperativsystemLab3/cmake-build-debug/CMakeFiles/test1.dir
+/home/skyh1ghdev/Programming/Projects/OperativsystemLab3/cmake-build-debug/CMakeFiles/test2.dir
+/home/skyh1ghdev/Programming/Projects/OperativsystemLab3/cmake-build-debug/CMakeFiles/test3.dir
+/home/skyh1ghdev/Programming/Projects/OperativsystemLab3/cmake-build-debug/CMakeFiles/test4.dir
+/home/skyh1ghdev/Programming/Projects/OperativsystemLab3/cmake-build-debug/CMakeFiles/test5.dir
+/home/skyh1ghdev/Programming/Projects/OperativsystemLab3/cmake-build-debug/CMakeFiles/cleanBuild.dir
+/home/skyh1ghdev/Programming/Projects/OperativsystemLab3/cmake-build-debug/CMakeFiles/edit_cache.dir
+/home/skyh1ghdev/Programming/Projects/OperativsystemLab3/cmake-build-debug/CMakeFiles/rebuild_cache.dir
