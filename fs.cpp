@@ -14,7 +14,6 @@ void FS::ReadDirectoriesFromFat() {
 }
 
 FS::FS() {
-    std::cout << "FS::FS()... Creating file system\n";
     ReadFatFromDisk();
     ReadDirectoriesFromFat();
 
@@ -444,8 +443,22 @@ int FS::cp(std::string sourcepath, std::string destpath)
     }
 
     std::string destinationPath = destpath;
-    if ((destpathFilePtr != nullptr && destpathFilePtr->type == TYPE_DIR) || destinationPath == "..") {
+
+    if ((destinationPath == ".." || destinationPath == "/..") && this->currentFilepath == "/")
+    {
+        std::cout << "Invalid copy" << std::endl;
+        return -1;
+    }
+
+
+    if ((destpathFilePtr != nullptr && destpathFilePtr->type == TYPE_DIR) || destinationPath == ".." || destinationPath == "/..") {
         destinationPath += "/" + GetFilenameFromFilepath(sourcepath);
+
+        if ((destpathFilePtr->access_rights & WRITE) == 0)
+        {
+            std::cout << "You don't have the privilege to write this file" << std::endl;
+            return -1;
+        }
     }
 
     if (CheckValidCreate(destinationPath) == -1) {
@@ -458,6 +471,11 @@ int FS::cp(std::string sourcepath, std::string destpath)
 
     if (GetDirEntry(sourcepath, &sourceFilePtr) == -1) {
         return -1;
+    }
+
+    if ((sourceFilePtr->access_rights & READ) == 0)
+    {
+        std::cout << "You don't have the privilege to read the source file";
     }
 
     std::string sourceString = ReadFileBlocksFromMemory(*sourceFilePtr);
@@ -473,7 +491,7 @@ int FS::cp(std::string sourcepath, std::string destpath)
     std::string copyFilename = GetFilenameFromFilepath(destinationPath);
 
     dir_entry copyDirEntry = MakeDirEntry(copyFilename, sourceFilePtr->size, indexVector.at(0), TYPE_FILE,
-                                          READ | WRITE | EXECUTE);
+                                          sourceFilePtr->access_rights);
 
     std::vector<std::string> destFilenameVector = SplitFilepath(destinationPath);
     std::vector<std::string> destDirectoryFilenameVector(destFilenameVector.begin(), destFilenameVector.end() - 1);
@@ -496,8 +514,77 @@ int FS::cp(std::string sourcepath, std::string destpath)
 // or moves the file <sourcepath> to the directory <destpath> (if dest is a directory)
 int FS::mv(std::string sourcepath, std::string destpath)
 {
-    cp(sourcepath, destpath);
-    rm(sourcepath);
+
+    dir_entry *destpathFilePtr{};
+    if (GetDirEntry(destpath, &destpathFilePtr) == -1)
+    {
+        destpathFilePtr = nullptr;
+    }
+
+    std::string destinationPath = destpath;
+    if ((destinationPath == ".." || destinationPath == "/..") && this->currentFilepath == "/")
+    {
+        std::cout << "Invalid copy" << std::endl;
+        return -1;
+    }
+
+    if ((destpathFilePtr != nullptr && destpathFilePtr->type == TYPE_DIR) || destinationPath == ".." || destinationPath == "/..") {
+        destinationPath += "/" + GetFilenameFromFilepath(sourcepath);
+
+        if ((destpathFilePtr->access_rights & WRITE) == 0)
+        {
+            std::cout << "You don't have the privilege to write this file" << std::endl;
+            return -1;
+        }
+    }
+
+    if (CheckValidCreate(destinationPath) == -1)
+    {
+        return -1;
+    }
+
+    std::vector<std::string> sourceFilenameVector = SplitFilepath(sourcepath);
+    std::vector<std::string> destFilenameVector = SplitFilepath(destinationPath);
+    dir_entry *sourceFilePtr{};
+    if (GetDirEntry(sourcepath, &sourceFilePtr) == -1)
+    {
+        return -1;
+    }
+
+    if ((sourceFilePtr->access_rights & WRITE) == 0)
+    {
+        std::cout << "You don't have the privilege to read the source file";
+    }
+
+    FilepathType sourceFilepathType = sourcepath[0] == '/' ? Absolute : Relative;
+    TreeNode<std::vector<dir_entry>> *sourceDirectoryNodePtr;
+    std::vector<std::string> sourceDirectoryFilenameVector = std::vector<std::string>(sourceFilenameVector.begin(),
+                                                                                      sourceFilenameVector.end() - 1);
+    if (TraverseDirectoryTree(sourceDirectoryFilenameVector, sourceFilepathType, &sourceDirectoryNodePtr) == -1)
+    {
+        return -1;
+    }
+
+    FilepathType destFilepathType = destinationPath[0] == '/' ? Absolute : Relative;
+    TreeNode<std::vector<dir_entry>> *destDirectoryNodePtr;
+    std::vector<std::string> destDirectoryFilenameVector = std::vector<std::string>(destFilenameVector.begin(),
+                                                                                    destFilenameVector.end() - 1);
+    if (TraverseDirectoryTree(destDirectoryFilenameVector, destFilepathType, &destDirectoryNodePtr) == -1)
+    {
+        return -1;
+    }
+
+    strcpy(sourceFilePtr->file_name, GetFilenameFromFilepath(destinationPath).c_str());
+    dir_entry test = *sourceFilePtr;
+    for (int i = 0; i < sourceDirectoryNodePtr->value.size(); ++i)
+    {
+        if (strcmp((char *) sourceFilePtr->file_name, (char *) sourceDirectoryNodePtr->value.at(i).file_name) == 0)
+        {
+            sourceDirectoryNodePtr->value.erase(sourceDirectoryNodePtr->value.begin() + i);
+        }
+    }
+
+    destDirectoryNodePtr->value.push_back(test);
 
     return 0;
 }
@@ -737,6 +824,11 @@ std::string FS::GetUpdatedCurrentDirectoryPath(std::vector<std::string> const &d
 // cd <dirpath> changes the current (working) directory to the directory named <dirpath>
 int FS::cd(std::string dirpath)
 {
+    if (dirpath == ".." && this->currentFilepath == "/")
+    {
+        return -1;
+    }
+
     std::vector<std::string> directoryFilenameVector = SplitFilepath(dirpath);
     FilepathType filepathType = dirpath[0] == '/' ? Absolute : Relative;
     TreeNode<std::vector<dir_entry> > *newCurrentDirectoryPtr{};
