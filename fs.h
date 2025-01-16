@@ -41,8 +41,8 @@ private:
     // size of a FAT entry is 2 bytes
     std::array<std::int16_t, 2048> fat{};
 
-    dir_entry rootDirEntry{};
-    dir_entry currentDirEntry{};
+    dir_entry rootDirEntry = {"/", 0, 0, TYPE_DIR, READ | WRITE | EXECUTE};
+    dir_entry currentDirectoryEntry;
 
     std::stack<std::string> currentPath{};
 
@@ -73,9 +73,11 @@ private:
 
     void WriteFileToDisk(const std::vector<int16_t>& memoryBlocks, const std::vector<std::string>& inputStringBlocks);
 
+    std::string ReadFileFromDisk(const dir_entry& dirEntry);
+
     std::vector<std::string> TokenizePath(const std::string& filepath) const;
 
-    dir_entry GetStartingDirectory(const std::string& filepath) const;
+    dir_entry GetStartingDirectoryEntry(const std::string& filepath) const;
 
     int GetDirEntry(const std::vector<std::string>& tokens, const std::array<dir_entry, 64>& startingDirectory,
                     dir_entry& directoryEntry);
