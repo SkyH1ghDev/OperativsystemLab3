@@ -1,6 +1,7 @@
 #include "fs.h"
 #include <sstream>
 #include <cstring>
+#include <bitset>
 
 FS::FS() : currentDirectoryEntry(rootDirEntry)
 {
@@ -21,6 +22,8 @@ int FS::format()
     // Format FAT
     this->fat[ROOT_BLOCK] = FAT_EOF;
     this->fat[FAT_BLOCK] = FAT_EOF;
+
+    memset(this->fat.data() + 2 * sizeof(std::uint16_t), 0, 2046 * sizeof(std::uint16_t));
 
     // Format Root-Directory
     std::array<dir_entry, 64> root{};
@@ -67,7 +70,7 @@ int FS::create(const std::string& filepath)
     std::vector<std::string> creationTokens = {tokens.begin(), tokens.end() - 1};
 
     dir_entry creationDirEntry;
-    GetDirEntry(creationTokens, startingDirectory, creationDirEntry);
+    GetDirEntry(creationTokens, startingDirectory, creationDirEntry, READ | WRITE);
     std::array<dir_entry, 64> creationDirectory = ReadDirectoryFromDisk(creationDirEntry);
 
     // Search the directory for available space
@@ -123,21 +126,15 @@ int FS::cat(const std::string& filepath)
     std::array<dir_entry, 64> startingDirectory = ReadDirectoryFromDisk(startingDirectoryEntry);
 
     dir_entry directoryEntry;
-    if (GetDirEntry(tokens, startingDirectory, directoryEntry) == -1)
+    if (GetDirEntry(tokens, startingDirectory, directoryEntry, READ) == -1)
     {
-        "Could Not Find File";
-        return -1;
-    }
-
-    if (directoryEntry.access_rights & READ == 0)
-    {
-        std::cout << "You Do Not Have The Privileges To Read This File";
+        "Could Not Find File\n";
         return -1;
     }
 
     if (directoryEntry.type == TYPE_DIR)
     {
-        std::cout << "Unable To Read Directory As File";
+        std::cout << "Unable To Read Directory As File\n";
         return -1;
     }
 
@@ -191,7 +188,7 @@ int FS::cp(std::string sourcepath, std::string destpath)
     std::array<dir_entry, 64> sourceStartingDirectory = ReadDirectoryFromDisk(sourceStartingDirEntry);
 
     dir_entry sourceDirEntry;
-    if (GetDirEntry(sourceTokens, sourceStartingDirectory, sourceDirEntry) == -1)
+    if (GetDirEntry(sourceTokens, sourceStartingDirectory, sourceDirEntry, READ) == -1)
     {
         std::cout << "Source File Could Not Be Found\n";
         return -1;
@@ -208,7 +205,7 @@ int FS::cp(std::string sourcepath, std::string destpath)
     std::array<dir_entry, 64> destStartingDirectory = ReadDirectoryFromDisk(destStartingDirEntry);
 
     dir_entry destDirEntry;
-    if (GetDirEntry(destTokens, destStartingDirectory, destDirEntry) == 0)
+    if (GetDirEntry(destTokens, destStartingDirectory, destDirEntry, READ | WRITE) == 0)
     {
         if (destDirEntry.type == TYPE_FILE)
         {
@@ -266,7 +263,7 @@ int FS::cp(std::string sourcepath, std::string destpath)
         std::vector<std::string> creationTokens = {destTokens.begin(), destTokens.end() - 1};
 
         dir_entry creationDirEntry;
-        GetDirEntry(creationTokens, destStartingDirectory, creationDirEntry);
+        GetDirEntry(creationTokens, destStartingDirectory, creationDirEntry, READ | WRITE);
         std::array<dir_entry, 64> creationDirectory = ReadDirectoryFromDisk(creationDirEntry);
 
         // Search the directory for available space
@@ -320,7 +317,7 @@ int FS::mv(std::string sourcepath, std::string destpath)
     std::array<dir_entry, 64> sourceStartingDirectory = ReadDirectoryFromDisk(sourceStartingDirEntry);
 
     dir_entry sourceDirEntry;
-    if (GetDirEntry(sourceTokens, sourceStartingDirectory, sourceDirEntry) == -1)
+    if (GetDirEntry(sourceTokens, sourceStartingDirectory, sourceDirEntry, 0) == -1)
     {
         std::cout << "Source File Could Not Be Found\n";
         return -1;
@@ -337,7 +334,7 @@ int FS::mv(std::string sourcepath, std::string destpath)
     std::array<dir_entry, 64> destStartingDirectory = ReadDirectoryFromDisk(destStartingDirEntry);
 
     dir_entry destDirEntry;
-    if (GetDirEntry(destTokens, destStartingDirectory, destDirEntry) == 0)
+    if (GetDirEntry(destTokens, destStartingDirectory, destDirEntry, READ | WRITE) == 0)
     {
         if (destDirEntry.type == TYPE_FILE)
         {
@@ -348,7 +345,7 @@ int FS::mv(std::string sourcepath, std::string destpath)
         std::vector<std::string> sourceParentTokens = {sourceTokens.begin(), sourceTokens.end() - 1};
 
         dir_entry sourceParentDirEntry;
-        GetDirEntry(sourceParentTokens, sourceStartingDirectory, sourceParentDirEntry);
+        GetDirEntry(sourceParentTokens, sourceStartingDirectory, sourceParentDirEntry, READ | WRITE);
 
         std::array<dir_entry, 64> sourceParentDirectory = ReadDirectoryFromDisk(sourceParentDirEntry);
 
@@ -403,7 +400,7 @@ int FS::mv(std::string sourcepath, std::string destpath)
         std::vector<std::string> sourceParentTokens = {sourceTokens.begin(), sourceTokens.end() - 1};
 
         dir_entry sourceParentDirEntry;
-        GetDirEntry(sourceParentTokens, sourceStartingDirectory, sourceParentDirEntry);
+        GetDirEntry(sourceParentTokens, sourceStartingDirectory, sourceParentDirEntry, READ | WRITE);
 
         std::array<dir_entry, 64> sourceParentDirectory = ReadDirectoryFromDisk(sourceParentDirEntry);
 
@@ -425,13 +422,13 @@ int FS::mv(std::string sourcepath, std::string destpath)
         std::vector<std::string> destParentTokens = {destTokens.begin(), destTokens.end() - 1};
 
         dir_entry destParentDirEntry;
-        GetDirEntry(destParentTokens, destStartingDirectory, destParentDirEntry);
+        GetDirEntry(destParentTokens, destStartingDirectory, destParentDirEntry, READ | WRITE);
 
         std::array<dir_entry, 64> destParentDirectory = ReadDirectoryFromDisk(destParentDirEntry);
 
         for (int i = 2; i < destParentDirectory.max_size(); ++i)
         {
-            if (std::string(destParentDirectory.at(i).file_name) == std::string(sourceDirEntry.file_name))
+            if (std::string(destParentDirectory.at(i).file_name) == destTokens.back())
             {
                 std::cout << "File Already Exists\n";
                 return -1;
@@ -474,7 +471,7 @@ int FS::rm(std::string filepath)
     std::array<dir_entry, 64> startingDirectory = ReadDirectoryFromDisk(startingDirectoryEntry);
 
     dir_entry dirEntry;
-    if (GetDirEntry(tokens, startingDirectory, dirEntry) == -1)
+    if (GetDirEntry(tokens, startingDirectory, dirEntry, 0) == -1)
     {
         std::cout << "Could Not Find The File\n";
         return -1;
@@ -514,7 +511,7 @@ int FS::rm(std::string filepath)
     std::vector<std::string> parentTokens = {tokens.begin(), tokens.end() - 1};
 
     dir_entry parentDirEntry;
-    GetDirEntry(parentTokens, startingDirectory, parentDirEntry);
+    GetDirEntry(parentTokens, startingDirectory, parentDirEntry, READ | WRITE | EXECUTE);
 
     std::array<dir_entry, 64> parentDirectory = ReadDirectoryFromDisk(parentDirEntry);
 
@@ -534,7 +531,73 @@ int FS::rm(std::string filepath)
 
 int FS::append(std::string filepath1, std::string filepath2)
 {
-    std::cout << "Test" << std::endl;
+    std::vector<std::string> sourceTokens = TokenizePath(filepath1);
+    dir_entry sourceStartingDirEntry = GetStartingDirectoryEntry(filepath1);
+    std::array<dir_entry, 64> sourceStartingDirectory = ReadDirectoryFromDisk(sourceStartingDirEntry);
+
+    dir_entry sourceDirEntry;
+    if (GetDirEntry(sourceTokens, sourceStartingDirectory, sourceDirEntry, READ) == -1)
+    {
+        std::cout << "Source File Could Not Be Found\n";
+        return -1;
+    }
+
+    if (sourceDirEntry.type == TYPE_DIR)
+    {
+        std::cout << "Cannot Read Source File Of Type Dir\n";
+        return -1;
+    }
+
+    std::string sourceString = ReadFileFromDisk(sourceDirEntry);
+
+    std::vector<std::string> destTokens = TokenizePath(filepath2);
+    dir_entry destStartingDirEntry = GetStartingDirectoryEntry(filepath2);
+    std::array<dir_entry, 64> destStartingDirectory = ReadDirectoryFromDisk(destStartingDirEntry);
+
+    dir_entry destDirEntry;
+    if (GetDirEntry(destTokens, destStartingDirectory, destDirEntry, READ | WRITE) == -1)
+    {
+        std::cout << "Destination File Could Not Be Found\n";
+        return -1;
+    }
+
+    if (destDirEntry.type == TYPE_DIR)
+    {
+        std::cout << "Cannot Write To Destination File Of Type Dir\n";
+        return -1;
+    }
+
+    std::vector<std::string> destParentTokens = {destTokens.begin(), destTokens.end() - 1};
+
+    dir_entry destParentDirEntry;
+    GetDirEntry(destParentTokens, destStartingDirectory, destParentDirEntry, READ | WRITE);
+
+    std::array<dir_entry, 64> destParentDirectory = ReadDirectoryFromDisk(destParentDirEntry);
+
+    std::string destString = ReadFileFromDisk(destDirEntry);
+    std::string totalString = destString + "\n" + sourceString;
+
+    for (int i = 2; i < destParentDirectory.max_size(); ++i)
+    {
+        if (std::string(destParentDirectory.at(i).file_name) == std::string(destDirEntry.file_name))
+        {
+            destParentDirectory.at(i).size = totalString.size() + 1;
+            break;
+        }
+    }
+
+    std::vector<std::int16_t> indexVector = GetUsedMemoryBlockIndices(destDirEntry);
+    std::vector<std::string> blockVector = DivideStringIntoBlocks(totalString);
+
+    if (ReserveMemory(blockVector.size(), indexVector) == -1)
+    {
+        std::cout << "Insufficient Free Memory Available\n";
+        return -1;
+    }
+
+    WriteDirectoryToDisk(destParentDirectory, destParentDirEntry);
+    WriteFileToDisk(indexVector, blockVector);
+
     return 0;
 }
 
@@ -554,7 +617,7 @@ int FS::mkdir(std::string dirpath)
     std::vector<std::string> creationTokens = {tokens.begin(), tokens.end() - 1};
 
     dir_entry creationDirEntry;
-    GetDirEntry(creationTokens, startingDirectory, creationDirEntry);
+    GetDirEntry(creationTokens, startingDirectory, creationDirEntry, READ | WRITE);
     std::array<dir_entry, 64> creationDirectory = ReadDirectoryFromDisk(creationDirEntry);
 
     // Check If Directory Is Full
@@ -613,7 +676,7 @@ int FS::cd(std::string dirpath)
     std::array<dir_entry, 64> startingDirectory = ReadDirectoryFromDisk(startingDirectoryEntry);
 
     dir_entry dirEntry;
-    if (GetDirEntry(tokens, startingDirectory, dirEntry) == -1)
+    if (GetDirEntry(tokens, startingDirectory, dirEntry, READ | EXECUTE) == -1)
     {
         std::cout << "Could Not Find File\n";
         return -1;
@@ -699,7 +762,7 @@ int FS::chmod(std::string accessrights, std::string filepath)
     std::array<dir_entry, 64> startingDirectory = ReadDirectoryFromDisk(startingDirectoryEntry);
 
     dir_entry dirEntry;
-    if (GetDirEntry(tokens, startingDirectory, dirEntry) == -1)
+    if (GetDirEntry(tokens, startingDirectory, dirEntry, 0) == -1)
     {
         std::cout << "Could Not Find File\n";
         return -1;
@@ -709,7 +772,7 @@ int FS::chmod(std::string accessrights, std::string filepath)
 
     std::vector<std::string> parentTokens = {tokens.begin(), tokens.end() - 1};
     dir_entry parentDirectoryEntry;
-    GetDirEntry(parentTokens, startingDirectory, parentDirectoryEntry);
+    GetDirEntry(parentTokens, startingDirectory, parentDirectoryEntry, READ | WRITE);
 
     std::array<dir_entry, 64> parentDirectory = ReadDirectoryFromDisk(parentDirectoryEntry);
 
@@ -878,12 +941,19 @@ dir_entry FS::GetStartingDirectoryEntry(const std::string& filepath) const
 }
 
 int FS::GetDirEntry(const std::vector<std::string>& tokens, const std::array<dir_entry, 64>& startingDirectory,
-                    dir_entry& directoryEntry)
+                    dir_entry& directoryEntry, const std::int8_t& accessRights)
 {
     std::array<dir_entry, 64> currentDirectory = startingDirectory;
 
     if (tokens.empty())
     {
+        if (currentDirectory.at(0).access_rights & accessRights != accessRights)
+        {
+            std::cout << "You Do Not Have The Necessary Privileges (" << this->rightsMap[accessRights] <<
+                    ") For This Operation\n";
+            return -1;
+        }
+
         directoryEntry = currentDirectory.at(0);
         return 0;
     }
@@ -898,6 +968,14 @@ int FS::GetDirEntry(const std::vector<std::string>& tokens, const std::array<dir
             {
                 dirEntryFound = true;
 
+                std::int8_t permission = dirEntry.access_rights & accessRights;
+                if (permission != accessRights)
+                {
+                    std::cout << "You Do Not Have The Necessary Privileges (" << this->rightsMap[accessRights] <<
+                            ") For This Operation\n";
+                    return -1;
+                }
+
                 if (i == tokens.size() - 1)
                 {
                     directoryEntry = dirEntry;
@@ -907,12 +985,6 @@ int FS::GetDirEntry(const std::vector<std::string>& tokens, const std::array<dir
                 if (dirEntry.type != TYPE_DIR)
                 {
                     std::cout << "Invalid Filepath \n";
-                    return -1;
-                }
-
-                if (dirEntry.access_rights & READ == 0)
-                {
-                    std::cout << "You Do Not Have The Privileges To Read The File " << dirEntry.file_name << "\n";
                     return -1;
                 }
 
@@ -945,7 +1017,7 @@ int FS::CheckValidCreate(const std::vector<std::string>& tokens, const std::arra
     }
 
     dir_entry dirEntry;
-    if (GetDirEntry(tokens, startingDirectory, dirEntry) == 0)
+    if (GetDirEntry(tokens, startingDirectory, dirEntry, READ | WRITE) == 0)
     {
         std::cout << "File Already Exists \n";
         return -1;
@@ -985,4 +1057,19 @@ std::vector<std::string> FS::DivideStringIntoBlocks(std::string const& inputStri
     stringVec.push_back(inputString.substr(maxIndex * BLOCK_SIZE));
 
     return stringVec;
+}
+
+std::vector<std::int16_t> FS::GetUsedMemoryBlockIndices(const dir_entry& dirEntry)
+{
+    std::int16_t currentIndex = dirEntry.first_blk;
+    std::vector<std::int16_t> indexVector;
+
+    while (this->fat[currentIndex] != FAT_EOF)
+    {
+        indexVector.push_back(currentIndex);
+    }
+
+    indexVector.push_back(currentIndex);
+
+    return indexVector;
 }

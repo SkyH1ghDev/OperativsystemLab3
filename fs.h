@@ -80,13 +80,15 @@ private:
     dir_entry GetStartingDirectoryEntry(const std::string& filepath) const;
 
     int GetDirEntry(const std::vector<std::string>& tokens, const std::array<dir_entry, 64>& startingDirectory,
-                    dir_entry& directoryEntry);
+                    dir_entry& directoryEntry, const std::int8_t& accessRights);
 
     int CheckValidCreate(const std::vector<std::string>& tokens, const std::array<dir_entry, 64>& startingDirectory);
 
     void SaveInputToString(std::size_t& size, std::string& inputString);
 
-    std::vector<std::string> DivideStringIntoBlocks(std::string const& inputString);
+    std::vector<std::string> DivideStringIntoBlocks(const std::string& inputString);
+
+    std::vector<std::int16_t> GetUsedMemoryBlockIndices(const dir_entry& dirEntry);
 
 public:
     FS();
