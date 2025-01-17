@@ -6,7 +6,7 @@ FS::FS() : currentDirectoryEntry(rootDirEntry)
 {
     std::cout << "Starting Filesystem... \n";
 
-    disk.read(FAT_BLOCK, reinterpret_cast<std::uint8_t*>(this->fat.data()));
+    disk.read(FAT_BLOCK, reinterpret_cast<std::uint8_t *>(this->fat.data()));
 
     std::srand(time(nullptr));
 }
@@ -93,10 +93,11 @@ int FS::create(const std::string& filepath)
 
     std::vector<std::string> inputStringBlocks = DivideStringIntoBlocks(inputString);
 
-    std::vector<int16_t> reservedMemoryIndexVector;
+    std::vector<std::int16_t> reservedMemoryIndexVector;
     if (ReserveMemory(inputStringBlocks.size(), reservedMemoryIndexVector) == -1)
     {
-        std::cout << "Insufficient available space for this file";
+        std::cout << "Insufficient available space for this file\n";
+        return -1;
     }
 
     dir_entry newFileDirEntry;
@@ -185,13 +186,284 @@ int FS::ls()
 
 int FS::cp(std::string sourcepath, std::string destpath)
 {
-    std::cout << "Test" << std::endl;
+    std::vector<std::string> sourceTokens = TokenizePath(sourcepath);
+    dir_entry sourceStartingDirEntry = GetStartingDirectoryEntry(sourcepath);
+    std::array<dir_entry, 64> sourceStartingDirectory = ReadDirectoryFromDisk(sourceStartingDirEntry);
+
+    dir_entry sourceDirEntry;
+    if (GetDirEntry(sourceTokens, sourceStartingDirectory, sourceDirEntry) == -1)
+    {
+        std::cout << "Source File Could Not Be Found\n";
+        return -1;
+    }
+
+    if (sourceDirEntry.type == TYPE_DIR)
+    {
+        std::cout << "Cannot Copy Directory\n";
+        return -1;
+    }
+
+    std::vector<std::string> destTokens = TokenizePath(destpath);
+    dir_entry destStartingDirEntry = GetStartingDirectoryEntry(destpath);
+    std::array<dir_entry, 64> destStartingDirectory = ReadDirectoryFromDisk(destStartingDirEntry);
+
+    dir_entry destDirEntry;
+    if (GetDirEntry(destTokens, destStartingDirectory, destDirEntry) == 0)
+    {
+        if (destDirEntry.type == TYPE_FILE)
+        {
+            std::cout << "File Already Exists\n";
+            return -1;
+        }
+
+        std::array<dir_entry, 64> destDirectory = ReadDirectoryFromDisk(destDirEntry);
+
+        std::int8_t fileIndex = -1;
+        for (int i = 0; i < destDirectory.max_size(); ++i)
+        {
+            if (destDirectory.at(i).file_name[0] == '\0')
+            {
+                fileIndex = i;
+                break;
+            }
+        }
+
+        if (fileIndex == -1)
+        {
+            std::cout << "Directory Is At Max Capacity (64) \n";
+            return -1;
+        }
+
+        std::string inputString = ReadFileFromDisk(sourceDirEntry);
+
+        std::vector<std::string> inputStringBlocks = DivideStringIntoBlocks(inputString);
+
+        std::vector<std::int16_t> reservedMemoryIndexVector;
+        if (ReserveMemory(inputStringBlocks.size(), reservedMemoryIndexVector) == -1)
+        {
+            std::cout << "Insufficient available space for this file\n";
+            return -1;
+        }
+
+        dir_entry sourceDirEntryCopy = sourceDirEntry;
+
+        std::memset(sourceDirEntryCopy.file_name, '\0', 56);
+        sourceTokens.back().copy(sourceDirEntryCopy.file_name, 56);
+
+        sourceDirEntryCopy.first_blk = reservedMemoryIndexVector.at(0);
+
+        destDirectory[fileIndex] = sourceDirEntryCopy;
+        WriteDirectoryToDisk(destDirectory, destDirEntry);
+
+        WriteFileToDisk(reservedMemoryIndexVector, inputStringBlocks);
+    } else
+    {
+        if (CheckValidCreate(destTokens, destStartingDirectory) == -1)
+        {
+            return -1;
+        }
+
+        std::vector<std::string> creationTokens = {destTokens.begin(), destTokens.end() - 1};
+
+        dir_entry creationDirEntry;
+        GetDirEntry(creationTokens, destStartingDirectory, creationDirEntry);
+        std::array<dir_entry, 64> creationDirectory = ReadDirectoryFromDisk(creationDirEntry);
+
+        // Search the directory for available space
+        std::int8_t fileIndex = -1;
+        for (int i = 0; i < creationDirectory.max_size(); ++i)
+        {
+            if (creationDirectory.at(i).file_name[0] == '\0')
+            {
+                fileIndex = i;
+                break;
+            }
+        }
+
+        if (fileIndex == -1)
+        {
+            std::cout << "Directory Is At Max Capacity (64) \n";
+            return -1;
+        }
+
+        std::string inputString = ReadFileFromDisk(sourceDirEntry);
+
+        std::vector<std::string> inputStringBlocks = DivideStringIntoBlocks(inputString);
+
+        std::vector<std::int16_t> reservedMemoryIndexVector;
+        if (ReserveMemory(inputStringBlocks.size(), reservedMemoryIndexVector) == -1)
+        {
+            std::cout << "Insufficient available space for this file\n";
+            return -1;
+        }
+
+        dir_entry sourceDirEntryCopy = sourceDirEntry;
+
+        std::memset(sourceDirEntryCopy.file_name, '\0', 56);
+        destTokens.back().copy(sourceDirEntryCopy.file_name, 56);
+
+        sourceDirEntryCopy.first_blk = reservedMemoryIndexVector.at(0);
+
+        creationDirectory[fileIndex] = sourceDirEntryCopy;
+        WriteDirectoryToDisk(creationDirectory, creationDirEntry);
+
+        WriteFileToDisk(reservedMemoryIndexVector, inputStringBlocks);
+    }
+
     return 0;
 }
 
 int FS::mv(std::string sourcepath, std::string destpath)
 {
-    std::cout << "Test" << std::endl;
+    std::vector<std::string> sourceTokens = TokenizePath(sourcepath);
+    dir_entry sourceStartingDirEntry = GetStartingDirectoryEntry(sourcepath);
+    std::array<dir_entry, 64> sourceStartingDirectory = ReadDirectoryFromDisk(sourceStartingDirEntry);
+
+    dir_entry sourceDirEntry;
+    if (GetDirEntry(sourceTokens, sourceStartingDirectory, sourceDirEntry) == -1)
+    {
+        std::cout << "Source File Could Not Be Found\n";
+        return -1;
+    }
+
+    if (sourceDirEntry.type == TYPE_DIR)
+    {
+        std::cout << "Cannot Copy Directory\n";
+        return -1;
+    }
+
+    std::vector<std::string> destTokens = TokenizePath(destpath);
+    dir_entry destStartingDirEntry = GetStartingDirectoryEntry(destpath);
+    std::array<dir_entry, 64> destStartingDirectory = ReadDirectoryFromDisk(destStartingDirEntry);
+
+    dir_entry destDirEntry;
+    if (GetDirEntry(destTokens, destStartingDirectory, destDirEntry) == 0)
+    {
+        if (destDirEntry.type == TYPE_FILE)
+        {
+            std::cout << "File Already Exists\n";
+            return -1;
+        }
+
+        std::vector<std::string> sourceParentTokens = {sourceTokens.begin(), sourceTokens.end() - 1};
+
+        dir_entry sourceParentDirEntry;
+        GetDirEntry(sourceParentTokens, sourceStartingDirectory, sourceParentDirEntry);
+
+        std::array<dir_entry, 64> sourceParentDirectory = ReadDirectoryFromDisk(sourceParentDirEntry);
+
+        for (int i = 2; i < sourceParentDirectory.max_size(); ++i)
+        {
+            if (std::string(sourceDirEntry.file_name) == std::string(sourceParentDirectory.at(i).file_name))
+            {
+                sourceParentDirectory.at(i) = {};
+                break;
+            }
+
+            if (i == sourceParentDirectory.max_size() - 1)
+            {
+                std::cout << "Directory Is At Max Capacity (64)\n";
+                return -1;
+            }
+        }
+
+        std::array<dir_entry, 64> destDirectory = ReadDirectoryFromDisk(destDirEntry);
+
+        for (int i = 2; i < destDirectory.max_size(); ++i)
+        {
+            if (std::string(destDirectory.at(i).file_name) == std::string(sourceDirEntry.file_name))
+            {
+                std::cout << "File Already Exists\n";
+                return -1;
+            }
+        }
+
+        WriteDirectoryToDisk(sourceParentDirectory, sourceParentDirEntry);
+
+        destDirectory = ReadDirectoryFromDisk(destDirEntry);
+
+        for (int i = 2; i < destDirectory.max_size(); ++i)
+        {
+            if (std::string(destDirectory.at(i).file_name) == "\0")
+            {
+                destDirectory.at(i) = sourceDirEntry;
+                break;
+            }
+
+            if (i == destDirectory.max_size() - 1)
+            {
+                std::cout << "Directory Is At Max Capacity (64)\n";
+                return -1;
+            }
+        }
+
+        WriteDirectoryToDisk(destDirectory, destDirEntry);
+    } else
+    {
+        std::vector<std::string> sourceParentTokens = {sourceTokens.begin(), sourceTokens.end() - 1};
+
+        dir_entry sourceParentDirEntry;
+        GetDirEntry(sourceParentTokens, sourceStartingDirectory, sourceParentDirEntry);
+
+        std::array<dir_entry, 64> sourceParentDirectory = ReadDirectoryFromDisk(sourceParentDirEntry);
+
+        for (int i = 2; i < sourceParentDirectory.max_size(); ++i)
+        {
+            if (std::string(sourceDirEntry.file_name) == std::string(sourceParentDirectory.at(i).file_name))
+            {
+                sourceParentDirectory.at(i) = {};
+                break;
+            }
+
+            if (i == sourceParentDirectory.max_size() - 1)
+            {
+                std::cout << "Directory Is At Max Capacity (64)\n";
+                return -1;
+            }
+        }
+
+        std::vector<std::string> destParentTokens = {destTokens.begin(), destTokens.end() - 1};
+
+        dir_entry destParentDirEntry;
+        GetDirEntry(destParentTokens, destStartingDirectory, destParentDirEntry);
+
+        std::array<dir_entry, 64> destParentDirectory = ReadDirectoryFromDisk(destParentDirEntry);
+
+        for (int i = 2; i < destParentDirectory.max_size(); ++i)
+        {
+            if (std::string(destParentDirectory.at(i).file_name) == std::string(sourceDirEntry.file_name))
+            {
+                std::cout << "File Already Exists\n";
+                return -1;
+            }
+        }
+
+        WriteDirectoryToDisk(sourceParentDirectory, sourceParentDirEntry);
+
+        destParentDirectory = ReadDirectoryFromDisk(destParentDirEntry);
+
+        for (int i = 2; i < destParentDirectory.max_size(); ++i)
+        {
+            if (std::string(destParentDirectory.at(i).file_name) == "\0")
+            {
+                dir_entry sourceDirEntryCopy = sourceDirEntry;
+
+                std::memset(sourceDirEntryCopy.file_name, '\0', 56);
+                destTokens.back().copy(sourceDirEntryCopy.file_name, 56);
+                destParentDirectory.at(i) = sourceDirEntryCopy;
+                break;
+            }
+
+            if (i == destParentDirectory.max_size() - 1)
+            {
+                std::cout << "Directory Is At Max Capacity (64)\n";
+                return -1;
+            }
+        }
+
+        WriteDirectoryToDisk(destParentDirectory, destParentDirEntry);
+    }
+
     return 0;
 }
 
@@ -210,7 +482,7 @@ int FS::rm(std::string filepath)
 
     if (dirEntry.type == TYPE_DIR)
     {
-        std::array<dir_entry,64> directory = ReadDirectoryFromDisk(dirEntry);
+        std::array<dir_entry, 64> directory = ReadDirectoryFromDisk(dirEntry);
 
         // Check if there are any files except ".." and "."
         for (int i = 2; i < directory.max_size(); ++i)
@@ -239,7 +511,7 @@ int FS::rm(std::string filepath)
 
     this->fat[currentIndex] = FAT_FREE;
 
-    std::vector<std::string> parentTokens = { tokens.begin(), tokens.end() - 1 };
+    std::vector<std::string> parentTokens = {tokens.begin(), tokens.end() - 1};
 
     dir_entry parentDirEntry;
     GetDirEntry(parentTokens, startingDirectory, parentDirEntry);
@@ -359,7 +631,7 @@ int FS::cd(std::string dirpath)
     {
         std::stack<std::string> newPathStack;
 
-        for (std::string pathSegment : tokens)
+        for (std::string pathSegment: tokens)
         {
             if (pathSegment == "..")
             {
@@ -376,10 +648,9 @@ int FS::cd(std::string dirpath)
         }
 
         this->currentPath = newPathStack;
-    }
-    else
+    } else
     {
-        for (std::string pathSegment : tokens)
+        for (std::string pathSegment: tokens)
         {
             if (pathSegment == "..")
             {
@@ -430,7 +701,7 @@ int FS::chmod(std::string accessrights, std::string filepath)
     dir_entry dirEntry;
     if (GetDirEntry(tokens, startingDirectory, dirEntry) == -1)
     {
-        std::cout << "Could Not Find File";
+        std::cout << "Could Not Find File\n";
         return -1;
     }
 
@@ -528,6 +799,7 @@ void FS::WriteDirectoryToDisk(const std::array<dir_entry, 64>& directory, const 
 
     std::memcpy(data, directory.data(), sizeof(dir_entry) * directory.size());
     disk.write(directoryEntry.first_blk, data);
+    WriteFatToDisk();
 }
 
 std::array<dir_entry, 64> FS::ReadDirectoryFromDisk(const dir_entry& directoryEntry)
@@ -560,6 +832,7 @@ void FS::WriteFileToDisk(const std::vector<int16_t>& memoryBlocks, const std::ve
     std::string const& lastBlock = inputStringBlocks.back();
 
     disk.write(memoryBlocks.back(), (uint8_t *) lastBlock.c_str());
+    WriteFatToDisk();
 }
 
 std::string FS::ReadFileFromDisk(const dir_entry& dirEntry)
@@ -569,7 +842,7 @@ std::string FS::ReadFileFromDisk(const dir_entry& dirEntry)
 
     while (currentBlock != FAT_EOF)
     {
-        char readBlock[BLOCK_SIZE];
+        char readBlock[BLOCK_SIZE] = {};
 
         disk.read(currentBlock, (uint8_t *) readBlock);
 
