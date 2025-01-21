@@ -7,7 +7,7 @@ FS::FS() : currentDirectoryEntry(rootDirEntry)
 {
     std::cout << "Starting Filesystem... \n";
 
-    disk.read(FAT_BLOCK, reinterpret_cast<std::uint8_t *>(this->fat.data()));
+	ReadFatFromDisk();
 
     std::srand(time(nullptr));
 }

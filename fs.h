@@ -61,8 +61,6 @@ private:
 
     int ReserveMemory(const std::int16_t& numBlocks, std::vector<std::int16_t>& memoryBlocks);
 
-    void FreeMemory(const dir_entry& dirEntry);
-
     void WriteFatToDisk();
 
     void ReadFatFromDisk();
